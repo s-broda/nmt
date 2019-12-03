@@ -105,3 +105,16 @@ venv.bak/
 
 # tensorflow
 /training_checkpoints
+
+# LaTex
+
+*.aux
+*.bbl
+*.bib
+*.blg
+*.brf
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+
