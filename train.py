@@ -26,7 +26,7 @@ path_to_files = os.path.dirname(path_to_files)
 
 num_examples = 30000 # -1 means all
 BATCH_SIZE = 16
-EPOCHS = 10
+EPOCHS = 2
 dict_size = 5000
 embedding_dim = 256
 units = 1024
@@ -119,9 +119,6 @@ for epoch in range(EPOCHS):
   total_loss = 0
 
   for (batch, (inp, targ)) in enumerate(dataset.take(steps_per_epoch)):
-    print(inp.shape)
-    print(targ.shape)
-    print(batch)
     batch_loss = train_step(inp, targ, enc_hidden)
     total_loss += batch_loss
 
