@@ -11,38 +11,42 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 import os
 import time
-from nmt import load_dataset, max_length, Encoder, Decoder, BahdanauAttention, preprocess_sentence, loss_function
+from nmt import load_wmt_dataset, max_length, Encoder, Decoder, BahdanauAttention, preprocess_sentence, loss_function
 
-path_to_zip = tf.keras.utils.get_file(
-    'spa-eng.zip', origin='http://storage.googleapis.com/download.tensorflow.org/data/spa-eng.zip',
-    extract=True)
+path_to_files = tf.keras.utils.get_file(
+    'english.txt', origin='https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.en',
+    extract=False)
 
-path_to_file = os.path.dirname(path_to_zip)+"/spa-eng/spa.txt"
+path_to_files = tf.keras.utils.get_file(
+    'german.txt', origin='https://nlp.stanford.edu/projects/nmt/data/wmt14.en-de/train.de',
+    extract=False)
+
+path_to_files = os.path.dirname(path_to_files)
+
 
 num_examples = 30000 # -1 means all
-BATCH_SIZE = 64
+BATCH_SIZE = 16
 EPOCHS = 10
+dict_size = 5000
 embedding_dim = 256
 units = 1024
 checkpoint_dir = './training_checkpoints'
 checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
 
-input_tensor, target_tensor, inp_lang, targ_lang = load_dataset(path_to_file, num_examples)
+input_tensor, target_tensor, inp_lang, targ_lang = load_wmt_dataset(path_to_files, num_examples, dict_size)
 max_length_targ, max_length_inp = max_length(target_tensor), max_length(input_tensor)
 input_tensor_train, input_tensor_val, target_tensor_train, target_tensor_val = train_test_split(input_tensor, target_tensor, test_size=0.2)
 
 BUFFER_SIZE = len(input_tensor_train)
 steps_per_epoch = len(input_tensor_train)//BATCH_SIZE
-vocab_inp_size = len(inp_lang.word_index)+1
-vocab_tar_size = len(targ_lang.word_index)+1
 
 dataset = tf.data.Dataset.from_tensor_slices((input_tensor_train, target_tensor_train)).shuffle(BUFFER_SIZE)
 dataset = dataset.batch(BATCH_SIZE, drop_remainder=True)
 
 # model definition
-encoder = Encoder(vocab_inp_size, embedding_dim, units, BATCH_SIZE)
+encoder = Encoder(dict_size, embedding_dim, units, BATCH_SIZE)
 attention_layer = BahdanauAttention(10)
-decoder = Decoder(vocab_tar_size, embedding_dim, units, BATCH_SIZE)
+decoder = Decoder(dict_size, embedding_dim, units, BATCH_SIZE)
 optimizer = tf.keras.optimizers.Adam()
 
 checkpoint = tf.train.Checkpoint(optimizer=optimizer,
@@ -115,6 +119,9 @@ for epoch in range(EPOCHS):
   total_loss = 0
 
   for (batch, (inp, targ)) in enumerate(dataset.take(steps_per_epoch)):
+    print(inp.shape)
+    print(targ.shape)
+    print(batch)
     batch_loss = train_step(inp, targ, enc_hidden)
     total_loss += batch_loss
 
