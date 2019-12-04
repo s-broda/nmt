@@ -140,11 +140,5 @@ for epoch in range(EPOCHS):
 # restoring the latest checkpoint in checkpoint_dir
 checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
 
-en, sp = translate(u'hace mucho frio aqui.')
-print(sp, "  ====>  ", en)
-en, sp = translate(u'esta es mi vida.')
-print(sp, "  ====>  ", en)
-en, sp = translate(u'¿todavia estan en casa?')
-print(sp, "  ====>  ", en)
-en, sp = translate(u'trata de averiguarlo.')
-print(sp, "  ====>  ", en)
+print(translate(u'du da.'))
+
