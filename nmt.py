@@ -6,7 +6,7 @@ import tensorflow as tf
 import unicodedata
 import re
 import io
-
+import os
 # Converts the unicode file to ascii
 def unicode_to_ascii(s):
   return ''.join(c for c in unicodedata.normalize('NFD', s)
@@ -35,19 +35,18 @@ def preprocess_sentence(w):
 # 1. Remove the accents
 # 2. Clean the sentences
 # 3. Return word pairs in the format: [ENGLISH, SPANISH]
-def create_dataset(path, num_examples):
-  lines = io.open(path, encoding='UTF-8').read().strip().split('\n')
-
-  word_pairs = [[preprocess_sentence(w) for w in l.split('\t')]  for l in lines[:num_examples]]
+def create_wmt_dataset(path, num_examples):
+  lines_en = io.open(os.path.join(path, 'english.txt'), encoding='UTF-8').read().strip().split('\n')
+  lines_de = io.open(os.path.join(path, 'german.txt'), encoding='UTF-8').read().strip().split('\n')
+  word_pairs = [[preprocess_sentence(w) for w in l]  for l in zip(lines_en[:num_examples], lines_de[:num_examples])]
 
   return zip(*word_pairs)
 
 def max_length(tensor):
   return max(len(t) for t in tensor)
 
-def tokenize(lang):
-  lang_tokenizer = tf.keras.preprocessing.text.Tokenizer(
-      filters='')
+def tokenize(lang, dict_size):
+  lang_tokenizer = tf.keras.preprocessing.text.Tokenizer(num_words=dict_size, filters='', oov_token='<unk>')
   lang_tokenizer.fit_on_texts(lang)
 
   tensor = lang_tokenizer.texts_to_sequences(lang)
@@ -62,12 +61,12 @@ def convert(lang, tensor):
     if t!=0:
       print ("%d ----> %s" % (t, lang.index_word[t]))
 
-def load_dataset(path, num_examples=None):
+def load_wmt_dataset(path, num_examples=None, dict_size=None):
   # creating cleaned input, output pairs
-  targ_lang, inp_lang = create_dataset(path, num_examples)
+  targ_lang, inp_lang = create_wmt_dataset(path, num_examples)
 
-  input_tensor, inp_lang_tokenizer = tokenize(inp_lang)
-  target_tensor, targ_lang_tokenizer = tokenize(targ_lang)
+  input_tensor, inp_lang_tokenizer = tokenize(inp_lang, dict_size)
+  target_tensor, targ_lang_tokenizer = tokenize(targ_lang, dict_size)
 
   return input_tensor, target_tensor, inp_lang_tokenizer, targ_lang_tokenizer
 
