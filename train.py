@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import absolute_import, division, print_function, unicode_literals
-
+from datetime import datetime
+import json
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -13,7 +14,7 @@ import time
 import argparse
 from nmt import load_wmt_dataset, max_length, Encoder, Decoder, BahdanauAttention, preprocess_sentence, loss_function
 
-# python train.py --num_examples 20 --batch_size 16 --epochs 1 --dict_size 20 --embedding_dim 256 --units 20
+# python train.py --num_examples 20 --batch_size 16 --epochs 10 --dict_size 20 --embedding_dim 256 --units 20
 # region Define parameters
 # todo adjust default values to best performing model
 parser = argparse.ArgumentParser()
@@ -21,8 +22,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--num_examples", type=int, default=50000, help="Number of samples - (-1) means all.")
 
 # Learning
+parser.add_argument("--experiment_name", type=str, default='test', help="Insert string defining your experiment.")
+
 parser.add_argument("--batch_size", type=int, default=16, help="Batchsize used for training.")
-parser.add_argument("--epochs", type=int, default=1, help="Epochs used for training.")
+parser.add_argument("--epochs", type=int, default=2, help="Epochs used for training.")
 parser.add_argument("--dict_size", type=int, default=5000, help="Size of dictionary used for training.")
 parser.add_argument("--embedding_dim", type=int, default=256, help="Dimension of embedding.")
 
@@ -32,6 +35,7 @@ parser.add_argument("--units", type=int, default=1024, help="Encoder and decoder
 # read variables # todo clean up - can for sure be done more elegantly
 ARGS = parser.parse_args()
 num_examples = ARGS.num_examples
+experiment_name = ARGS.experiment_name
 BATCH_SIZE = ARGS.batch_size
 EPOCHS = ARGS.epochs
 dict_size = ARGS.dict_size
@@ -39,7 +43,16 @@ embedding_dim = ARGS.embedding_dim
 units = ARGS.units
 
 checkpoint_dir = './training_checkpoints'
+experiment_name = datetime.today().strftime('%Y%m%d_%H%M') + '_' + experiment_name
+checkpoint_dir = os.path.normpath(os.path.join(checkpoint_dir, experiment_name))
+if not os.path.exists(checkpoint_dir):
+    os.makedirs(checkpoint_dir)
 checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+
+# save config of experiment in directory
+config = vars(ARGS)
+json.dump(config, open(os.path.join(checkpoint_dir, 'config.json'), 'w'), indent=4, sort_keys=True)
+
 # endregion
 
 def train():
