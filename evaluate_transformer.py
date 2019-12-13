@@ -8,6 +8,7 @@ import tensorflow as tf
 import numpy as np
 import os.path
 from transformer import Transformer, create_masks
+import matplotlib.pyplot as plt
 import nltk
 nltk.download('punkt')
 
@@ -89,6 +90,39 @@ def evaluate(inp_sentence):
 
   return tf.squeeze(output, axis=0), attention_weights
 
+def plot_attention_weights(attention, sentence, result, layer):
+  fig = plt.figure(figsize=(16, 8))
+  
+  sentence = tokenizer_de.encode(sentence)
+  
+  attention = tf.squeeze(attention[layer], axis=0)
+  
+  for head in range(attention.shape[0]):
+    ax = fig.add_subplot(2, 4, head+1)
+    
+    # plot the attention weights
+    ax.matshow(attention[head][:-1, :], cmap='viridis')
+
+    fontdict = {'fontsize': 10}
+    
+    ax.set_xticks(range(len(sentence)+2))
+    ax.set_yticks(range(len(result)))
+    
+    ax.set_ylim(len(result)-1.5, -0.5)
+        
+    ax.set_xticklabels(
+        ['<start>']+[tokenizer_de.decode([i]) for i in sentence]+['<end>'], 
+        fontdict=fontdict, rotation=90)
+    
+    ax.set_yticklabels([tokenizer_en.decode([i]) for i in result 
+                        if i < tokenizer_en.vocab_size], 
+                       fontdict=fontdict)
+    
+    ax.set_xlabel('Head {}'.format(head+1))
+  
+  plt.tight_layout()
+  plt.show()
+  
 def translate(sentence, plot=''):
   result, attention_weights = evaluate(sentence)
   
@@ -107,18 +141,18 @@ translations = []
 inputs = []
 targets = []    
 BLEUs = []
-for sen in test_examples:
-    sentence = sen[0].numpy().decode('utf-8')
-    translation = translate(sentence)
-    truth = sen[1].numpy().decode('utf-8')
-    BLEU = nltk.translate.bleu_score.sentence_bleu([truth], translation)
+for sentence in test_examples:
+    inp = sentence[0].numpy().decode('utf-8')
+    target = sentence[1].numpy().decode('utf-8')
+    translation = translate(inp)
+    BLEU = nltk.translate.bleu_score.sentence_bleu([nltk.word_tokenize(target)], nltk.word_tokenize(translation))
     translations.append(translation)
-    inputs.append(sentence)
+    inputs.append(inp)
     BLEUs.append(BLEU)
-    print('Average BLEU score: ', np.mean(BLEUs))
-    targets.append(truth)
+    print('Average BLEU score: ', 100 * np.mean(BLEUs))
+    targets.append(target)
 
 d = {'input': inputs, 'target': targets, 'translation': translations, 'BLEU': BLEUs}
 df = pd.DataFrame.from_dict(d)
 df.to_csv(os.path.join(output_path, 'results.csv'))
-print('Average BLEU score: ', np.mean(BLEUs))
+print('Average BLEU score: ', 100 * np.mean(BLEUs))
