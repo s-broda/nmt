@@ -28,24 +28,23 @@ dff = 512 # base transformer uses 2048
 num_heads = 8 # base transformer uses 8
 dropout_rate = 0.1
 
-split = tfds.Split.TRAIN.subsplit(tfds.percent[:TRAIN_ON])
 
 examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
-                               as_supervised=True, split=[split, 'validation'])
-train_examples, val_examples = examples[0], examples[1]
+                               as_supervised=True)
+train_examples, val_examples = examples['train'], examples['validation']
 
-if os.path.isfile(os.path.join(tokenizer_path, "tokenizer_en_" + str(DICT_SIZE) + "_" + str(TRAIN_ON) + ".subwords")):
-    tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(tokenizer_path, "tokenizer_en_" + str(DICT_SIZE) + "_" + str(TRAIN_ON)))
+if os.path.isfile(os.path.join(tokenizer_path, "tokenizer_en_" + str(DICT_SIZE) + ".subwords")):
+    tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(tokenizer_path, "tokenizer_en_" + str(DICT_SIZE)))
 else:
     tokenizer_en = tfds.features.text.SubwordTextEncoder.build_from_corpus(
         (en.numpy() for de, en in train_examples), target_vocab_size=DICT_SIZE)
-    tokenizer_en.save_to_file(os.path.join(tokenizer_path, "tokenizer_en_" + str(DICT_SIZE) + "_" + str(TRAIN_ON)))
-if os.path.isfile(os.path.join(tokenizer_path, "tokenizer_de_" + str(DICT_SIZE) + "_" + str(TRAIN_ON) + ".subwords")):
-    tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file("tokenizer_de_" + str(DICT_SIZE) + "_" + str(TRAIN_ON))
+    tokenizer_en.save_to_file(os.path.join(tokenizer_path, "tokenizer_en_" + str(DICT_SIZE)))
+if os.path.isfile(os.path.join(tokenizer_path, "tokenizer_de_" + str(DICT_SIZE) + ".subwords")):
+    tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file("tokenizer_de_" + str(DICT_SIZE))
 else:
     tokenizer_de = tfds.features.text.SubwordTextEncoder.build_from_corpus(
         (de.numpy() for de, en in train_examples), target_vocab_size=DICT_SIZE)
-    tokenizer_de.save_to_file(os.path.join(tokenizer_path, "tokenizer_de_" + str(DICT_SIZE) + "_" + str(TRAIN_ON)))
+    tokenizer_de.save_to_file(os.path.join(tokenizer_path, "tokenizer_de_" + str(DICT_SIZE)))
     
 input_vocab_size = tokenizer_de.vocab_size + 2
 target_vocab_size = tokenizer_en.vocab_size + 2
@@ -68,6 +67,11 @@ def encode(lang1, lang2):
 def tf_encode(de, en):
   return tf.py_function(encode, [de, en], [tf.int64, tf.int64])
 
+split = tfds.Split.TRAIN.subsplit(tfds.percent[:TRAIN_ON])
+
+examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
+                               as_supervised=True, split=[split, 'validation'])
+train_examples, val_examples = examples[0], examples[1]
 
 train_dataset = train_examples.map(tf_encode)
 train_dataset = train_dataset.filter(filter_max_length)
