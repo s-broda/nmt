@@ -10,16 +10,16 @@ import numpy as np
 import os.path
 from transformer import CustomSchedule, Transformer, create_masks
 # paths
-checkpoint_path = "./checkpoints/garb"
-tokenizer_path = "./"
+checkpoint_path = "./checkpoints/train"
+output_path = "./output"
 data_path = './data'
 
 # training parameters
 BUFFER_SIZE = 20000
 BATCH_SIZE = 64
 MAX_LENGTH = 40 # use only training examples shorter than this
-EPOCHS = 1
-TRAIN_ON = 1 # percentage of data to train on
+EPOCHS = 15
+TRAIN_ON = 100 # percentage of data to train on
 DICT_SIZE = 2**13 # this is likely too small
 # model hyperparameters
 num_layers = 4 # base transformer uses 6
@@ -28,23 +28,25 @@ dff = 512 # base transformer uses 2048
 num_heads = 8 # base transformer uses 8
 dropout_rate = 0.1
 
+if not os.path.exists(output_path):
+    os.makedirs(output_path)
 
 examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
                                as_supervised=True)
 train_examples, val_examples = examples['train'], examples['validation']
 
-if os.path.isfile(os.path.join(tokenizer_path, "tokenizer_en_" + str(DICT_SIZE) + ".subwords")):
-    tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(tokenizer_path, "tokenizer_en_" + str(DICT_SIZE)))
+if os.path.isfile(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE) + ".subwords")):
+    tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
 else:
     tokenizer_en = tfds.features.text.SubwordTextEncoder.build_from_corpus(
         (en.numpy() for de, en in train_examples), target_vocab_size=DICT_SIZE)
-    tokenizer_en.save_to_file(os.path.join(tokenizer_path, "tokenizer_en_" + str(DICT_SIZE)))
-if os.path.isfile(os.path.join(tokenizer_path, "tokenizer_de_" + str(DICT_SIZE) + ".subwords")):
-    tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file("tokenizer_de_" + str(DICT_SIZE))
+    tokenizer_en.save_to_file(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
+if os.path.isfile(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE) + ".subwords")):
+    tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE)))
 else:
     tokenizer_de = tfds.features.text.SubwordTextEncoder.build_from_corpus(
         (de.numpy() for de, en in train_examples), target_vocab_size=DICT_SIZE)
-    tokenizer_de.save_to_file(os.path.join(tokenizer_path, "tokenizer_de_" + str(DICT_SIZE)))
+    tokenizer_de.save_to_file(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE)))
     
 input_vocab_size = tokenizer_de.vocab_size + 2
 target_vocab_size = tokenizer_en.vocab_size + 2

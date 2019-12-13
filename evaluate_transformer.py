@@ -1,5 +1,53 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+import pandas as pd
+import tensorflow_datasets as tfds
+import tensorflow as tf
+import numpy as np
+import os.path
+from transformer import Transformer, create_masks
+import nltk
+nltk.download('punkt')
+
+# paths
+checkpoint_path = "./checkpoints/train"
+output_path = "./output"
+data_path = './data'
+
+# training parameters
+MAX_LENGTH = 40 # use only training examples shorter than this
+DICT_SIZE = 2**13 # this is likely too small
+# model hyperparameters
+num_layers = 4 # base transformer uses 6
+d_model = 128 # base transformer uses 512
+dff = 512 # base transformer uses 2048
+num_heads = 8 # base transformer uses 8
+dropout_rate = 0.1
+
+tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
+tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE)))
+input_vocab_size = tokenizer_de.vocab_size + 2
+target_vocab_size = tokenizer_en.vocab_size + 2
+
+transformer = Transformer(num_layers, d_model, num_heads, dff,
+                          input_vocab_size, target_vocab_size, 
+                          pe_input=input_vocab_size, 
+                          pe_target=target_vocab_size,
+                          rate=dropout_rate)
+                                 
+
+ckpt = tf.train.Checkpoint(transformer=transformer)
+
+
+ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
+ckpt.restore(ckpt_manager.latest_checkpoint).expect_partial()
+print ('Latest checkpoint restored!!')
+
+examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
+                               as_supervised=True)
+test_examples = examples['test']
 
 def evaluate(inp_sentence):
   start_token = [tokenizer_de.vocab_size]
@@ -52,4 +100,25 @@ def translate(sentence, plot=''):
   
   if plot:
     plot_attention_weights(attention_weights, sentence, result, plot)
-    
+  
+  return  predicted_sentence
+
+translations = []
+inputs = []
+targets = []    
+BLEUs = []
+for sen in test_examples:
+    sentence = sen[0].numpy().decode('utf-8')
+    translation = translate(sentence)
+    truth = sen[1].numpy().decode('utf-8')
+    BLEU = nltk.translate.bleu_score.sentence_bleu([truth], translation)
+    translations.append(translation)
+    inputs.append(sentence)
+    BLEUs.append(BLEU)
+    print('Average BLEU score: ', np.mean(BLEUs))
+    targets.append(truth)
+
+d = {'input': inputs, 'target': targets, 'translation': translations, 'BLEU': BLEUs}
+df = pd.DataFrame.from_dict(d)
+df.to_csv(os.path.join(output_path, 'results.csv'))
+print('Average BLEU score: ', np.mean(BLEUs))
