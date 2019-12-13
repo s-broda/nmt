@@ -105,6 +105,8 @@ venv.bak/
 
 # tensorflow
 /training_checkpoints
+/checkpoints
+/data
 
 # LaTex
 
