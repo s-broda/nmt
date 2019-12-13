@@ -12,7 +12,7 @@ import numpy as np
 import os
 import time
 import argparse
-from nmt import load_wmt_dataset, max_length, Encoder, Decoder, BahdanauAttention, preprocess_sentence, loss_function
+from seq2seq import load_wmt_dataset, max_length, Encoder, Decoder, BahdanauAttention, preprocess_sentence, loss_function
 
 # python train.py --num_examples 20 --batch_size 16 --epochs 10 --dict_size 20 --embedding_dim 256 --units 20
 # region Define parameters
