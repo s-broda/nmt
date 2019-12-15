@@ -13,40 +13,6 @@ import os.path
 import argparse
 from transformer import CustomSchedule, Transformer, create_masks
 
-
-# region Functions
-def loss_function(real, pred):
-    mask = tf.math.logical_not(tf.math.equal(real, 0))
-    loss_ = loss_object(real, pred)
-
-    mask = tf.cast(mask, dtype=loss_.dtype)
-    loss_ *= mask
-
-    return tf.reduce_mean(loss_)
-
-
-def filter_max_length(x, y, max_length=MAX_LENGTH):
-    """Function restricting used sequences x and y to <= max_lenght"""
-    return tf.logical_and(tf.size(x) <= max_length,
-                          tf.size(y) <= max_length)
-
-
-def encode(lang1, lang2):
-    lang1 = [tokenizer_de.vocab_size] + tokenizer_de.encode(
-        lang1.numpy()) + [tokenizer_de.vocab_size + 1]
-
-    lang2 = [tokenizer_en.vocab_size] + tokenizer_en.encode(
-        lang2.numpy()) + [tokenizer_en.vocab_size + 1]
-
-    return lang1, lang2
-
-
-def tf_encode(de, en):
-    return tf.py_function(encode, [de, en], [tf.int64, tf.int64])
-
-
-# endregion
-
 # region Setup Experiment parameters
 parser = argparse.ArgumentParser()
 
@@ -101,6 +67,35 @@ if not os.path.exists(output_path):
 # endregion
 
 def train():
+    # region Functions
+    def loss_function(real, pred):
+        mask = tf.math.logical_not(tf.math.equal(real, 0))
+        loss_ = loss_object(real, pred)
+
+        mask = tf.cast(mask, dtype=loss_.dtype)
+        loss_ *= mask
+
+        return tf.reduce_mean(loss_)
+
+    def filter_max_length(x, y, max_length=MAX_LENGTH):
+        """Function restricting used sequences x and y to <= max_lenght"""
+        return tf.logical_and(tf.size(x) <= max_length,
+                              tf.size(y) <= max_length)
+
+    def encode(lang1, lang2):
+        lang1 = [tokenizer_de.vocab_size] + tokenizer_de.encode(
+            lang1.numpy()) + [tokenizer_de.vocab_size + 1]
+
+        lang2 = [tokenizer_en.vocab_size] + tokenizer_en.encode(
+            lang2.numpy()) + [tokenizer_en.vocab_size + 1]
+
+        return lang1, lang2
+
+    def tf_encode(de, en):
+        return tf.py_function(encode, [de, en], [tf.int64, tf.int64])
+
+    # endregion
+
     # region Create tokenizers
     # read previously created tokenizers if they exist
     if (os.path.isfile(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE) + ".subwords")) &
