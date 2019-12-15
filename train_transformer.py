@@ -57,6 +57,8 @@ dropout_rate = ARGS.dropout_rate
 
 # save config of experiment in directory
 checkpoint_path = os.path.normpath(os.path.join(checkpoint_path, experiment_name))
+if not os.path.exists(checkpoint_path):
+    os.makedirs(checkpoint_path)
 config = vars(ARGS)
 json.dump(config, open(os.path.join(checkpoint_path, 'config.json'), 'w'), indent=4, sort_keys=True)
 
