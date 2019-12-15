@@ -94,6 +94,8 @@ checkpoint_path = os.path.normpath(os.path.join(checkpoint_path, experiment_name
 config = vars(ARGS)
 json.dump(config, open(os.path.join(checkpoint_path, 'config.json'), 'w'), indent=4, sort_keys=True)
 
+if not os.path.exists(checkpoint_path):
+    os.makedirs(checkpoint_path)
 if not os.path.exists(output_path):
     os.makedirs(output_path)
 # endregion
