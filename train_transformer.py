@@ -55,40 +55,53 @@ checkpoint_path = "./checkpoints/train"
 output_path = "./output"
 data_path = './data'
 
-parser.add_argument("--experiment_name", type=str, default='test', help="Insert string defining your experiment.")
-# training parameters
-parser.add_argument("--BUFFER_SIZE", type=int, default=20000, help="Train dataset shuffle size.")
-parser.add_argument("--BATCH_SIZE", type=int, default=64, help="Batch size used.")
-parser.add_argument("--MAX_LENGTH", type=int, default=40, help="Only using training examples shorter than this.")
-parser.add_argument("--EPOCHS", type=int, default=15, help="Epochs to train for.")
-parser.add_argument("--TRAIN_ON", type=int, default=100,
-                    help="Percentage of data to train on.")  # todo verify is there sth left for eval?
-parser.add_argument("--DICT_SIZE", type=int, default=2 ** 13, help="Size of dictionary.")
+# parser.add_argument("--experiment_name", type=str, default='test', help="Insert string defining your experiment.")
+# # training parameters
+# parser.add_argument("--BUFFER_SIZE", type=int, default=20000, help="Train dataset shuffle size.")
+# parser.add_argument("--BATCH_SIZE", type=int, default=64, help="Batch size used.")
+# parser.add_argument("--MAX_LENGTH", type=int, default=40, help="Only using training examples shorter than this.")
+# parser.add_argument("--EPOCHS", type=int, default=15, help="Epochs to train for.")
+# parser.add_argument("--TRAIN_ON", type=int, default=100,
+#                     help="Percentage of data to train on.")  # todo verify is there sth left for eval?
+# parser.add_argument("--DICT_SIZE", type=int, default=2 ** 13, help="Size of dictionary.")
+#
+# # model hyperparameters
+# parser.add_argument("--num_layers", type=int, default=4, help="Layers used - base transformer uses 6.")
+# parser.add_argument("--d_model", type=int, default=128,
+#                     help="custom schedule learning rate - base transformer uses 512.")
+# parser.add_argument("--dff", type=int, default=512, help="? - base transformer uses 2048.")
+# parser.add_argument("--num_heads", type=int, default=8, help="? - base transformer uses 8.")
+# parser.add_argument("--dropout_rate", type=float, default=0.1, help="Dropout rate.")
+#
+# # read variables # todo clean up - can for sure be done more elegantly
+# ARGS = parser.parse_args()
+# experiment_name = ARGS.experiment_name
+# BUFFER_SIZE = ARGS.BUFFER_SIZE
+# BATCH_SIZE = ARGS.BATCH_SIZE
+# MAX_LENGTH = ARGS.MAX_LENGTH
+# EPOCHS = ARGS.EPOCHS
+# TRAIN_ON = ARGS.TRAIN_ON
+# DICT_SIZE = ARGS.DICT_SIZE
+#
+# num_layers = ARGS.num_layers
+# d_model = ARGS.d_model
+# dff = ARGS.dff
+# num_heads = ARGS.num_heads
+# dropout_rate = ARGS.dropout_rate
 
-# model hyperparameters
-parser.add_argument("--num_layers", type=int, default=4, help="Layers used - base transformer uses 6.")
-parser.add_argument("--d_model", type=int, default=128,
-                    help="custom schedule learning rate - base transformer uses 512.")
-parser.add_argument("--dff", type=int, default=512, help="? - base transformer uses 2048.")
-parser.add_argument("--num_heads", type=int, default=8, help="? - base transformer uses 8.")
-parser.add_argument("--dropout_rate", type=float, default=0.1, help="Dropout rate.")
+experiment_name = 'test_local'
+BUFFER_SIZE = 2
+BATCH_SIZE = 3
+MAX_LENGTH = 2
+EPOCHS = 1
+TRAIN_ON = 100
+DICT_SIZE = 260
 
-# read variables # todo clean up - can for sure be done more elegantly
-ARGS = parser.parse_args()
-experiment_name = ARGS.experiment_name
-BUFFER_SIZE = ARGS.BUFFER_SIZE
-BATCH_SIZE = ARGS.BATCH_SIZE
-MAX_LENGTH = ARGS.MAX_LENGTH
-EPOCHS = ARGS.EPOCHS
-TRAIN_ON = ARGS.TRAIN_ON
-DICT_SIZE = ARGS.DICT_SIZE
-
-num_layers = ARGS.num_layers
-d_model = ARGS.d_model
-dff = ARGS.dff
-num_heads = ARGS.num_heads
-dropout_rate = ARGS.dropout_rate
-
+num_layers = 2
+d_model = 2
+dff = 2
+num_heads = 2
+dropout_rate = 0.1
 # save config of experiment in directory
 checkpoint_path = os.path.normpath(os.path.join(checkpoint_path, experiment_name))
 config = vars(ARGS)
