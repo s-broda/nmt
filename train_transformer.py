@@ -6,183 +6,228 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import tensorflow_datasets as tfds
 import tensorflow as tf
 import time
+import json
+import datetime
 import numpy as np
 import os.path
+import argparse
 from transformer import CustomSchedule, Transformer, create_masks
+
+
+# region Functions
+def loss_function(real, pred):
+    mask = tf.math.logical_not(tf.math.equal(real, 0))
+    loss_ = loss_object(real, pred)
+
+    mask = tf.cast(mask, dtype=loss_.dtype)
+    loss_ *= mask
+
+    return tf.reduce_mean(loss_)
+
+
+def filter_max_length(x, y, max_length=MAX_LENGTH):
+    """Function restricting used sequences x and y to <= max_lenght"""
+    return tf.logical_and(tf.size(x) <= max_length,
+                          tf.size(y) <= max_length)
+
+
+def encode(lang1, lang2):
+    lang1 = [tokenizer_de.vocab_size] + tokenizer_de.encode(
+        lang1.numpy()) + [tokenizer_de.vocab_size + 1]
+
+    lang2 = [tokenizer_en.vocab_size] + tokenizer_en.encode(
+        lang2.numpy()) + [tokenizer_en.vocab_size + 1]
+
+    return lang1, lang2
+
+
+def tf_encode(de, en):
+    return tf.py_function(encode, [de, en], [tf.int64, tf.int64])
+
+
+# endregion
+
+# region Setup Experiment parameters
+parser = argparse.ArgumentParser()
+
 # paths
 checkpoint_path = "./checkpoints/train"
 output_path = "./output"
 data_path = './data'
 
+parser.add_argument("--experiment_name", type=str, default='test', help="Insert string defining your experiment.")
 # training parameters
-BUFFER_SIZE = 20000
-BATCH_SIZE = 64
-MAX_LENGTH = 40 # use only training examples shorter than this
-EPOCHS = 15
-TRAIN_ON = 100 # percentage of data to train on
-DICT_SIZE = 2**13 # this is likely too small
+parser.add_argument("--BUFFER_SIZE", type=int, default=20000, help="Train dataset shuffle size.")
+parser.add_argument("--BATCH_SIZE", type=int, default=64, help="Batch size used.")
+parser.add_argument("--MAX_LENGTH", type=int, default=40, help="Only using training examples shorter than this.")
+parser.add_argument("--EPOCHS", type=int, default=15, help="Epochs to train for.")
+parser.add_argument("--TRAIN_ON", type=int, default=100,
+                    help="Percentage of data to train on.")  # todo verify is there sth left for eval?
+parser.add_argument("--DICT_SIZE", type=int, default=2 ** 13, help="Size of dictionary.")
+
 # model hyperparameters
-num_layers = 4 # base transformer uses 6
-d_model = 128 # base transformer uses 512
-dff = 512 # base transformer uses 2048
-num_heads = 8 # base transformer uses 8
-dropout_rate = 0.1
+parser.add_argument("--num_layers", type=int, default=4, help="Layers used - base transformer uses 6.")
+parser.add_argument("--d_model", type=int, default=128,
+                    help="custom schedule learning rate - base transformer uses 512.")
+parser.add_argument("--dff", type=int, default=512, help="? - base transformer uses 2048.")
+parser.add_argument("--num_heads", type=int, default=8, help="? - base transformer uses 8.")
+parser.add_argument("--dropout_rate", type=float, default=0.1, help="Dropout rate.")
+
+# read variables # todo clean up - can for sure be done more elegantly
+ARGS = parser.parse_args()
+experiment_name = ARGS.experiment_name
+BUFFER_SIZE = ARGS.BUFFER_SIZE
+BATCH_SIZE = ARGS.BATCH_SIZE
+MAX_LENGTH = ARGS.MAX_LENGTH
+EPOCHS = ARGS.EPOCHS
+TRAIN_ON = ARGS.TRAIN_ON
+DICT_SIZE = ARGS.DICT_SIZE
+
+num_layers = ARGS.num_layers
+d_model = ARGS.d_model
+dff = ARGS.dff
+num_heads = ARGS.num_heads
+dropout_rate = ARGS.dropout_rate
+
+# save config of experiment in directory
+checkpoint_path = os.path.normpath(os.path.join(checkpoint_path, experiment_name))
+config = vars(ARGS)
+json.dump(config, open(os.path.join(checkpoint_path, 'config.json'), 'w'), indent=4, sort_keys=True)
 
 if not os.path.exists(output_path):
     os.makedirs(output_path)
+# endregion
 
-examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
-                               as_supervised=True)
-train_examples, val_examples = examples['train'], examples['validation']
+def train():
+    # region Create tokenizers
+    # read previously created tokenizers if they exist
+    if (os.path.isfile(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE) + ".subwords")) &
+            os.path.isfile(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE) + ".subwords"))):
 
-if os.path.isfile(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE) + ".subwords")):
-    tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
-else:
-    tokenizer_en = tfds.features.text.SubwordTextEncoder.build_from_corpus(
-        (en.numpy() for de, en in train_examples), target_vocab_size=DICT_SIZE)
-    tokenizer_en.save_to_file(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
-if os.path.isfile(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE) + ".subwords")):
-    tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE)))
-else:
-    tokenizer_de = tfds.features.text.SubwordTextEncoder.build_from_corpus(
-        (de.numpy() for de, en in train_examples), target_vocab_size=DICT_SIZE)
-    tokenizer_de.save_to_file(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE)))
-    
-input_vocab_size = tokenizer_de.vocab_size + 2
-target_vocab_size = tokenizer_en.vocab_size + 2
+        tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(
+            os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
+        tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file(
+            os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE)))
+    else:
+        # create tokenizers from scratch
+        examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
+                                       as_supervised=True)
+        train_examples, val_examples = examples['train'], examples['validation']
 
-def filter_max_length(x, y, max_length=MAX_LENGTH):
-  return tf.logical_and(tf.size(x) <= max_length,
-                        tf.size(y) <= max_length)
+        # English tokenizer
+        tokenizer_en = tfds.features.text.SubwordTextEncoder.build_from_corpus(
+            (en.numpy() for de, en in train_examples), target_vocab_size=DICT_SIZE)
+        tokenizer_en.save_to_file(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
 
-def encode(lang1, lang2):
-  lang1 = [tokenizer_de.vocab_size] + tokenizer_de.encode(
-      lang1.numpy()) + [tokenizer_de.vocab_size+1]
+        # German tokenizer
+        tokenizer_de = tfds.features.text.SubwordTextEncoder.build_from_corpus(
+            (de.numpy() for de, en in train_examples), target_vocab_size=DICT_SIZE)
+        tokenizer_de.save_to_file(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE)))
 
-  lang2 = [tokenizer_en.vocab_size] + tokenizer_en.encode(
-      lang2.numpy()) + [tokenizer_en.vocab_size+1]
-  
-  return lang1, lang2
+    input_vocab_size = tokenizer_de.vocab_size + 2
+    target_vocab_size = tokenizer_en.vocab_size + 2
+    # endregion
 
+    # region Prepare Train dataset
+    split = tfds.Split.TRAIN.subsplit(tfds.percent[:TRAIN_ON])
 
-  
-def tf_encode(de, en):
-  return tf.py_function(encode, [de, en], [tf.int64, tf.int64])
+    examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
+                                   as_supervised=True, split=[split, 'validation'])
+    train_examples, val_examples = examples[0], examples[1]
 
-split = tfds.Split.TRAIN.subsplit(tfds.percent[:TRAIN_ON])
+    train_dataset = train_examples.map(tf_encode)
+    train_dataset = train_dataset.filter(filter_max_length)
+    # cache the dataset to memory to get a speedup while reading from it.
+    train_dataset = train_dataset.cache()
+    train_dataset = train_dataset.shuffle(BUFFER_SIZE).padded_batch(BATCH_SIZE, padded_shapes=([-1], [-1]))
+    train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    # endregion
 
-examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
-                               as_supervised=True, split=[split, 'validation'])
-train_examples, val_examples = examples[0], examples[1]
+    # region Prepare Validation dataset
+    val_dataset = val_examples.map(tf_encode)
+    val_dataset = val_dataset.filter(filter_max_length).padded_batch(BATCH_SIZE, padded_shapes=([-1], [-1]))
+    # endregion
 
-train_dataset = train_examples.map(tf_encode)
-train_dataset = train_dataset.filter(filter_max_length)
-# cache the dataset to memory to get a speedup while reading from it.
-train_dataset = train_dataset.cache()
-train_dataset = train_dataset.shuffle(BUFFER_SIZE).padded_batch(
-    BATCH_SIZE, padded_shapes=([-1], [-1]))
-train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    # region Define Modelling setup
+    learning_rate = CustomSchedule(d_model)
 
+    optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98,
+                                         epsilon=1e-9)
 
-val_dataset = val_examples.map(tf_encode)
-val_dataset = val_dataset.filter(filter_max_length).padded_batch(
-    BATCH_SIZE, padded_shapes=([-1], [-1]))
+    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(
+        from_logits=True, reduction='none')
 
+    train_loss = tf.keras.metrics.Mean(name='train_loss')
+    train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
 
-learning_rate = CustomSchedule(d_model)
+    transformer = Transformer(num_layers, d_model, num_heads, dff,
+                              input_vocab_size, target_vocab_size,
+                              pe_input=input_vocab_size,
+                              pe_target=target_vocab_size,
+                              rate=dropout_rate)
 
-optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98, 
-                                     epsilon=1e-9)
+    ckpt = tf.train.Checkpoint(transformer=transformer,
+                               optimizer=optimizer)
+    ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
+    # endregion
 
-loss_object = tf.keras.losses.SparseCategoricalCrossentropy(
-    from_logits=True, reduction='none')
+    # region Train model
+    # if a checkpoint exists, restore the latest checkpoint.
+    if ckpt_manager.latest_checkpoint:
+        ckpt.restore(ckpt_manager.latest_checkpoint)
+        print('Latest checkpoint restored!!')
 
-def loss_function(real, pred):
-  mask = tf.math.logical_not(tf.math.equal(real, 0))
-  loss_ = loss_object(real, pred)
-
-  mask = tf.cast(mask, dtype=loss_.dtype)
-  loss_ *= mask
-  
-  return tf.reduce_mean(loss_)
-
-train_loss = tf.keras.metrics.Mean(name='train_loss')
-train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
-
-transformer = Transformer(num_layers, d_model, num_heads, dff,
-                          input_vocab_size, target_vocab_size, 
-                          pe_input=input_vocab_size, 
-                          pe_target=target_vocab_size,
-                          rate=dropout_rate)
-
-
-
-ckpt = tf.train.Checkpoint(transformer=transformer,
-                           optimizer=optimizer)
-
-ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
-
-# if a checkpoint exists, restore the latest checkpoint.
-if ckpt_manager.latest_checkpoint:
-  ckpt.restore(ckpt_manager.latest_checkpoint)
-  print ('Latest checkpoint restored!!')
-
-# The @tf.function trace-compiles train_step into a TF graph for faster
-# execution. The function specializes to the precise shape of the argument
-# tensors. To avoid re-tracing due to the variable sequence lengths or variable
-# batch sizes (the last batch is smaller), use input_signature to specify
-# more generic shapes.
-
-train_step_signature = [
-    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
-    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
-]
-
-@tf.function(input_signature=train_step_signature)
-def train_step(inp, tar):
-  tar_inp = tar[:, :-1]
-  tar_real = tar[:, 1:]
-  
-  enc_padding_mask, combined_mask, dec_padding_mask = create_masks(inp, tar_inp)
-  with tf.GradientTape() as tape:
-    predictions, _ = transformer(inp, tar_inp, 
-                                 True, 
-                                 enc_padding_mask, 
-                                 combined_mask, 
-                                 dec_padding_mask)
-    loss = loss_function(tar_real, predictions)
-
-  gradients = tape.gradient(loss, transformer.trainable_variables)    
-  optimizer.apply_gradients(zip(gradients, transformer.trainable_variables))
-  
-  train_loss(loss)
-  train_accuracy(tar_real, predictions)
-  
-for epoch in range(EPOCHS):
-  start = time.time()
-  
-  train_loss.reset_states()
-  train_accuracy.reset_states()
-  
-  # inp -> portuguese, tar -> english
-  for (batch, (inp, tar)) in enumerate(train_dataset):
-    train_step(inp, tar)
-    
-    if batch % 50 == 0:
-      print ('Epoch {} Batch {} Loss {:.4f} Accuracy {:.4f}'.format(
-          epoch + 1, batch, train_loss.result(), train_accuracy.result()))
-      
-  if (epoch + 1) % 5 == 0:
-    ckpt_save_path = ckpt_manager.save()
-    print ('Saving checkpoint for epoch {} at {}'.format(epoch+1,
-                                                         ckpt_save_path))
-    
-  print ('Epoch {} Loss {:.4f} Accuracy {:.4f}'.format(epoch + 1, 
-                                                train_loss.result(), 
-                                                train_accuracy.result()))
-
-  print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
-  
+    # The @tf.function trace-compiles train_step into a TF graph for faster
+    # execution. The function specializes to the precise shape of the argument
+    # tensors. To avoid re-tracing due to the variable sequence lengths or variable
+    # batch sizes (the last batch is smaller), use input_signature to specify
+    # more generic shapes.
+    train_step_signature = [
+        tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+        tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+    ]
 
 
+    @tf.function(input_signature=train_step_signature)
+    def train_step(inp, tar):
+        tar_inp = tar[:, :-1]
+        tar_real = tar[:, 1:]
 
+        enc_padding_mask, combined_mask, dec_padding_mask = create_masks(inp, tar_inp)
+        with tf.GradientTape() as tape:
+            predictions, _ = transformer(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
+            loss = loss_function(tar_real, predictions)
+
+        gradients = tape.gradient(loss, transformer.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, transformer.trainable_variables))
+
+        train_loss(loss)
+        train_accuracy(tar_real, predictions)
+
+    for epoch in range(EPOCHS):
+        start = time.time()
+
+        train_loss.reset_states()
+        train_accuracy.reset_states()
+
+        # inp -> portuguese, tar -> english
+        for (batch, (inp, tar)) in enumerate(train_dataset):
+            train_step(inp, tar)
+        if batch % 50 == 0:
+            print('Epoch {} Batch {} Loss {:.4f} Accuracy {:.4f}'.format(
+                epoch + 1, batch, train_loss.result(), train_accuracy.result()))
+
+        if (epoch + 1) % 5 == 0:
+            ckpt_save_path = ckpt_manager.save()
+            print('Saving checkpoint for epoch {} at {}'.format(epoch + 1,
+                                                                ckpt_save_path))
+
+        print('Epoch {} Loss {:.4f} Accuracy {:.4f}'.format(epoch + 1,
+                                                            train_loss.result(),
+                                                            train_accuracy.result()))
+
+        print('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
+    # endregion
+
+if __name__ == "__main__":
+    train()
