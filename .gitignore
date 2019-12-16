@@ -107,6 +107,9 @@ venv.bak/
 /training_checkpoints
 /checkpoints
 /data
+/logs
+/output/results.csv
+*.ipynb
 
 # LaTex
 
