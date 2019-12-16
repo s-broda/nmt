@@ -16,12 +16,14 @@ from transformer import CustomSchedule, Transformer, create_masks
 parser = argparse.ArgumentParser()
 
 # paths
-checkpoint_path = "./checkpoints/train"
+checkpoint_path = "./checkpoints"
 output_path = "./output"
 data_path = './data'
 log_path = './logs'
 
-parser.add_argument("--experiment_name", type=str, default='test', help="Insert string defining your experiment.")
+current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+parser.add_argument("--experiment_name", type=str, default=current_time, help="Insert string defining your experiment. Defaults to datetime.now()")
 # training parameters
 parser.add_argument("--BUFFER_SIZE", type=int, default=20000, help="Train dataset shuffle size.")
 parser.add_argument("--BATCH_SIZE", type=int, default=64, help="Batch size used.")
@@ -39,6 +41,7 @@ parser.add_argument("--dff", type=int, default=512, help="dff - base transformer
 parser.add_argument("--num_heads", type=int, default=8, help="number of attention heads - base transformer uses 8.")
 parser.add_argument("--dropout_rate", type=float, default=0.1, help="Dropout rate.")
 
+print('Experiment name is ' + current_time + '.')
 # read variables # todo clean up - can for sure be done more elegantly
 ARGS = parser.parse_args()
 experiment_name = ARGS.experiment_name
@@ -57,9 +60,9 @@ dff = ARGS.dff
 num_heads = ARGS.num_heads
 dropout_rate = ARGS.dropout_rate
 
-current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-train_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/' + current_time + '/train')
-val_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/' + current_time + '/val')
+
+train_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/train')
+val_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/val')
 if not os.path.exists(train_log_dir):
     os.makedirs(train_log_dir)
 if not os.path.exists(val_log_dir):
