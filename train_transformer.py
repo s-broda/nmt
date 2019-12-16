@@ -25,18 +25,18 @@ parser.add_argument("--experiment_name", type=str, default='test', help="Insert 
 # training parameters
 parser.add_argument("--BUFFER_SIZE", type=int, default=20000, help="Train dataset shuffle size.")
 parser.add_argument("--BATCH_SIZE", type=int, default=64, help="Batch size used.")
-parser.add_argument("--MAX_LENGTH", type=int, default=40, help="Only using training examples shorter than this.")
+parser.add_argument("--MAX_LENGTH", type=int, default=40, help="Only using training examples shorter than this. Original transformer uses 65")
 parser.add_argument("--EPOCHS", type=int, default=15, help="Epochs to train for.")
 parser.add_argument("--TRAIN_ON", type=int, default=100,
-                    help="Percentage of data to train on.")  # todo verify is there sth left for eval?
-parser.add_argument("--DICT_SIZE", type=int, default=2 ** 13, help="Size of dictionary.")
+                    help="Percentage of data to train on.")
+parser.add_argument("--DICT_SIZE", type=int, default=2 ** 13, help="Size of dictionary. Original transformer uses 2**15")
 
 # model hyperparameters
 parser.add_argument("--num_layers", type=int, default=4, help="Layers used - base transformer uses 6.")
 parser.add_argument("--d_model", type=int, default=128,
-                    help="custom schedule learning rate - base transformer uses 512.")
-parser.add_argument("--dff", type=int, default=512, help="? - base transformer uses 2048.")
-parser.add_argument("--num_heads", type=int, default=8, help="? - base transformer uses 8.")
+                    help="d_model. Base transformer uses 512. Also enters learning rate schedule.")
+parser.add_argument("--dff", type=int, default=512, help="dff - base transformer uses 2048.")
+parser.add_argument("--num_heads", type=int, default=8, help="number of attention heads - base transformer uses 8.")
 parser.add_argument("--dropout_rate", type=float, default=0.1, help="Dropout rate.")
 
 # read variables # todo clean up - can for sure be done more elegantly
