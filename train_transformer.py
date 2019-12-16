@@ -222,7 +222,7 @@ def train():
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
         enc_padding_mask, combined_mask, dec_padding_mask = create_masks(inp, tar_inp)
-        predictions, _ = transformer(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
+        predictions, _ = transformer(inp, tar_inp, False, enc_padding_mask, combined_mask, dec_padding_mask)
         
         loss = loss_function(tar_real, predictions)
         val_loss(loss)
