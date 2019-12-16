@@ -8,7 +8,6 @@ import tensorflow as tf
 import time
 import json
 import datetime
-import numpy as np
 import os.path
 import argparse
 from transformer import CustomSchedule, Transformer, create_masks
@@ -17,11 +16,14 @@ from transformer import CustomSchedule, Transformer, create_masks
 parser = argparse.ArgumentParser()
 
 # paths
-checkpoint_path = "./checkpoints/train"
+checkpoint_path = "./checkpoints"
 output_path = "./output"
 data_path = './data'
+log_path = './logs'
 
-parser.add_argument("--experiment_name", type=str, default='test', help="Insert string defining your experiment.")
+current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+parser.add_argument("--experiment_name", type=str, default=current_time, help="Insert string defining your experiment. Defaults to datetime.now()")
 # training parameters
 parser.add_argument("--BUFFER_SIZE", type=int, default=20000, help="Train dataset shuffle size.")
 parser.add_argument("--BATCH_SIZE", type=int, default=64, help="Batch size used.")
@@ -39,6 +41,7 @@ parser.add_argument("--dff", type=int, default=512, help="dff - base transformer
 parser.add_argument("--num_heads", type=int, default=8, help="number of attention heads - base transformer uses 8.")
 parser.add_argument("--dropout_rate", type=float, default=0.1, help="Dropout rate.")
 
+print('Experiment name is ' + current_time + '.')
 # read variables # todo clean up - can for sure be done more elegantly
 ARGS = parser.parse_args()
 experiment_name = ARGS.experiment_name
@@ -49,11 +52,21 @@ EPOCHS = ARGS.EPOCHS
 TRAIN_ON = ARGS.TRAIN_ON
 DICT_SIZE = ARGS.DICT_SIZE
 
+
+    
 num_layers = ARGS.num_layers
 d_model = ARGS.d_model
 dff = ARGS.dff
 num_heads = ARGS.num_heads
 dropout_rate = ARGS.dropout_rate
+
+
+train_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/train')
+val_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/val')
+if not os.path.exists(train_log_dir):
+    os.makedirs(train_log_dir)
+if not os.path.exists(val_log_dir):
+    os.makedirs(val_log_dir)
 
 # save config of experiment in directory
 checkpoint_path = os.path.normpath(os.path.join(checkpoint_path, experiment_name))
@@ -159,6 +172,9 @@ def train():
     train_loss = tf.keras.metrics.Mean(name='train_loss')
     train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='train_accuracy')
 
+    val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
+    val_accuracy = tf.keras.metrics.SparseCategoricalAccuracy('val_accuracy')
+
     transformer = Transformer(num_layers, d_model, num_heads, dff,
                               input_vocab_size, target_vocab_size,
                               pe_input=input_vocab_size,
@@ -202,28 +218,48 @@ def train():
 
         train_loss(loss)
         train_accuracy(tar_real, predictions)
+    def val_step(inp, tar):
+        tar_inp = tar[:, :-1]
+        tar_real = tar[:, 1:]
+        enc_padding_mask, combined_mask, dec_padding_mask = create_masks(inp, tar_inp)
+        predictions, _ = transformer(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
+        
+        loss = loss_function(tar_real, predictions)
+        val_loss(loss)
+        val_accuracy(tar_real, predictions)
 
+    
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    val_summary_writer = tf.summary.create_file_writer(val_log_dir)
     for epoch in range(EPOCHS):
         start = time.time()
 
         train_loss.reset_states()
         train_accuracy.reset_states()
-
+        val_loss.reset_states()
+        val_accuracy.reset_states()
         # inp -> portuguese, tar -> english
         for (batch, (inp, tar)) in enumerate(train_dataset):
             train_step(inp, tar)
             if batch % 50 == 0:
                 print('Epoch {} Batch {} Loss {:.4f} Accuracy {:.4f}'.format(
                 epoch + 1, batch, train_loss.result(), train_accuracy.result()))
+                with train_summary_writer.as_default():
+                    tf.summary.scalar('train_loss', train_loss.result(), step=epoch)
+                    tf.summary.scalar('train_accuracy', train_accuracy.result(), step=epoch)
 
-        if (epoch + 1) % 5 == 0:
-            ckpt_save_path = ckpt_manager.save()
-            print('Saving checkpoint for epoch {} at {}'.format(epoch + 1,
+        ckpt_save_path = ckpt_manager.save()
+        print('Saving checkpoint for epoch {} at {}'.format(epoch + 1,
                                                                 ckpt_save_path))
-
-        print('Epoch {} Loss {:.4f} Accuracy {:.4f}'.format(epoch + 1,
-                                                            train_loss.result(),
-                                                            train_accuracy.result()))
+        for (batch, (inp, tar)) in enumerate(val_dataset):
+            val_step(inp, tar)
+        with val_summary_writer.as_default():
+            tf.summary.scalar('val_loss', val_loss.result(), step=epoch)
+            tf.summary.scalar('val_accuracy', val_accuracy.result(), step=epoch)
+  
+        print('Epoch {} Val Loss {:.4f} Val Accuracy {:.4f}'.format(epoch + 1,
+                                                            val_loss.result(),
+                                                            val_accuracy.result()))
 
         print('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
     # endregion

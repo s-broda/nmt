@@ -16,13 +16,13 @@ import nltk
 nltk.download('punkt')
 
 # paths
-checkpoint_path = "./checkpoints/train"
+checkpoint_path = "./checkpoints"
 output_path = "./output"
 data_path = './data'
 
 # Read Training parameters of this experiment
 parser = argparse.ArgumentParser()
-parser.add_argument("--experiment_name", type=str, default='test', help="Experiment to evaluate.")
+parser.add_argument("--experiment_name", type=str, required=True, help="Experiment to evaluate.")
 
 ARGS = parser.parse_args()
 experiment_name = ARGS.experiment_name
