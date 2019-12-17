@@ -25,18 +25,18 @@ current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 parser.add_argument("--experiment_name", type=str, default=current_time, help="Insert string defining your experiment. Defaults to datetime.now()")
 # training parameters
-parser.add_argument("--BUFFER_SIZE", type=int, default=20000, help="Train dataset shuffle size.")
+parser.add_argument("--BUFFER_SIZE", type=int, default=4000, help="Train dataset buffer size.")
 parser.add_argument("--BATCH_SIZE", type=int, default=64, help="Batch size used.")
 parser.add_argument("--MAX_LENGTH", type=int, default=40, help="Only using training examples shorter than this. Original transformer uses 65")
 parser.add_argument("--EPOCHS", type=int, default=15, help="Epochs to train for.")
-parser.add_argument("--TRAIN_ON", type=int, default=100,
-                    help="Percentage of data to train on.")
+parser.add_argument("--TRAIN_ON", type=int, default=100, help="Percentage of data to train on.")
 parser.add_argument("--DICT_SIZE", type=int, default=2 ** 13, help="Size of dictionary. Original transformer uses 2**15")
-
+parser.add_argument("--WARMUP_STEPS", type=int, default=4000, help="Number of warmup steps in learning rate cycle.")
+parser.add_argument("--LAMBDA", type=float, default=0.25, help="Weight of round-trip loss component")
+parser.add_argument("--NO_RTL", action='store_false', help="Don't use round-trip loss.")
 # model hyperparameters
 parser.add_argument("--num_layers", type=int, default=4, help="Layers used - base transformer uses 6.")
-parser.add_argument("--d_model", type=int, default=128,
-                    help="d_model. Base transformer uses 512. Also enters learning rate schedule.")
+parser.add_argument("--d_model", type=int, default=128, help="d_model. Base transformer uses 512. Also enters learning rate schedule.")
 parser.add_argument("--dff", type=int, default=512, help="dff - base transformer uses 2048.")
 parser.add_argument("--num_heads", type=int, default=8, help="number of attention heads - base transformer uses 8.")
 parser.add_argument("--dropout_rate", type=float, default=0.1, help="Dropout rate.")
@@ -51,8 +51,9 @@ MAX_LENGTH = ARGS.MAX_LENGTH
 EPOCHS = ARGS.EPOCHS
 TRAIN_ON = ARGS.TRAIN_ON
 DICT_SIZE = ARGS.DICT_SIZE
-
-
+WARMUP_STEPS = ARGS.WARMUP_STEPS
+LAMBDA = ARGS.LAMBDA
+USE_RTL = ARGS.NO_RTL # NO_RTL is store_false
     
 num_layers = ARGS.num_layers
 d_model = ARGS.d_model
@@ -161,7 +162,7 @@ def train():
     # endregion
 
     # region Define Modelling setup
-    learning_rate = CustomSchedule(d_model)
+    learning_rate = CustomSchedule(d_model, warmup_steps=WARMUP_STEPS)
 
     optimizer = tf.keras.optimizers.Adam(learning_rate, beta_1=0.9, beta_2=0.98,
                                          epsilon=1e-9)
@@ -175,14 +176,24 @@ def train():
     val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
     val_accuracy = tf.keras.metrics.SparseCategoricalAccuracy('val_accuracy')
 
-    transformer = Transformer(num_layers, d_model, num_heads, dff,
+    transformer1 = Transformer(num_layers, d_model, num_heads, dff,
                               input_vocab_size, target_vocab_size,
                               pe_input=input_vocab_size,
                               pe_target=target_vocab_size,
                               rate=dropout_rate)
-
-    ckpt = tf.train.Checkpoint(transformer=transformer,
-                               optimizer=optimizer)
+    if USE_RTL:
+        transformer2 = Transformer(num_layers, d_model, num_heads, dff,
+                                      target_vocab_size, input_vocab_size,
+                                      pe_input=target_vocab_size,
+                                      pe_target=input_vocab_size,
+                                      rate=dropout_rate)
+        ckpt = tf.train.Checkpoint(transformer1=transformer1,
+                                       transformer2=transformer2,
+                                       optimizer=optimizer)
+    else:
+        ckpt = tf.train.Checkpoint(transformer1=transformer1,
+                                       optimizer=optimizer)    
+            
     ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
     # endregion
 
@@ -205,28 +216,68 @@ def train():
 
     @tf.function(input_signature=train_step_signature)
     def train_step(inp, tar):
+        
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
-
-        enc_padding_mask, combined_mask, dec_padding_mask = create_masks(inp, tar_inp)
+        inp_inp = inp[:, :-1]
+        inp_real = inp[:, 1:]
+        enc_padding_mask1, combined_mask1, dec_padding_mask1 = create_masks(inp, tar_inp)
+        enc_padding_mask2, combined_mask2, dec_padding_mask2 = create_masks(tar, inp_inp)
         with tf.GradientTape() as tape:
-            predictions, _ = transformer(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
-            loss = loss_function(tar_real, predictions)
-
-        gradients = tape.gradient(loss, transformer.trainable_variables)
-        optimizer.apply_gradients(zip(gradients, transformer.trainable_variables))
-
+            predictions1, _ = transformer1(inp, tar_inp, True, enc_padding_mask1, combined_mask1, dec_padding_mask1)
+            loss1 = loss_function(tar_real, predictions1) # this is de->en
+            if USE_RTL:
+                predictions2, _ = transformer2(tar, inp_inp, True, enc_padding_mask2, combined_mask2, dec_padding_mask2)
+                loss2 = loss_function(inp_real, predictions2) # this is en->de
+                predicted_id2 = tf.argmax(predictions2, axis=-1) # find most likely token from logits
+                inp2 = tf.concat([inp[:, 0:1], predicted_id2], axis=-1) # add start token. inp2 is \hat{s} in the paper
+                predicted_id1 = tf.argmax(predictions1, axis=-1) # find most likely token from logits
+                tar2 = tf.concat([tar[:, 0:1], predicted_id1], axis=-1) # add start token. tar22 is \hat{t} in the paper
+                enc_padding_mask3, combined_mask3, dec_padding_mask3 = create_masks(inp2, tar_inp)
+                enc_padding_mask4, combined_mask4, dec_padding_mask4 = create_masks(tar2, inp_inp)
+                predictions3, _ = transformer1(inp2, tar_inp, True, enc_padding_mask3, combined_mask3, dec_padding_mask3)
+                loss3 = loss_function(tar_real, predictions3) # predictions3 is \tilde{t} in the paper
+                predictions4, _ = transformer2(tar2, inp_inp, True, enc_padding_mask4, combined_mask4, dec_padding_mask4)
+                loss4 = loss_function(inp_real, predictions4) # predictions4 is \tilde{s} in the paper
+                loss = loss1 + loss2 + LAMBDA * (loss3 + loss4)            
+            else:
+                loss = loss1
+        if USE_RTL:        
+            gradients = tape.gradient(loss, [transformer1.trainable_variables, transformer2.trainable_variables])
+            optimizer.apply_gradients(zip(gradients[0] + gradients[1], transformer1.trainable_variables + transformer2.trainable_variables))
+        else:
+            gradients = tape.gradient(loss, transformer1.trainable_variables)
+            optimizer.apply_gradients(zip(gradients, transformer1.trainable_variables))
+        
         train_loss(loss)
-        train_accuracy(tar_real, predictions)
+        train_accuracy(tar_real, predictions1)
     def val_step(inp, tar):
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
-        enc_padding_mask, combined_mask, dec_padding_mask = create_masks(inp, tar_inp)
-        predictions, _ = transformer(inp, tar_inp, False, enc_padding_mask, combined_mask, dec_padding_mask)
-        
-        loss = loss_function(tar_real, predictions)
+        inp_inp = inp[:, :-1]
+        inp_real = inp[:, 1:]
+        enc_padding_mask1, combined_mask1, dec_padding_mask1 = create_masks(inp, tar_inp)
+        enc_padding_mask2, combined_mask2, dec_padding_mask2 = create_masks(tar, inp_inp)
+        predictions1, _ = transformer1(inp, tar_inp, True, enc_padding_mask1, combined_mask1, dec_padding_mask1)
+        loss1 = loss_function(tar_real, predictions1) # this is de->en
+        if USE_RTL:
+            predictions2, _ = transformer2(tar, inp_inp, True, enc_padding_mask2, combined_mask2, dec_padding_mask2)
+            loss2 = loss_function(inp_real, predictions2) # this is en->de
+            predicted_id2 = tf.argmax(predictions2, axis=-1) # find most likely token from logits
+            inp2 = tf.concat([inp[:, 0:1], predicted_id2], axis=-1) # add start token. inp2 is \hat{s} in the paper
+            predicted_id1 = tf.argmax(predictions1, axis=-1) # find most likely token from logits
+            tar2 = tf.concat([tar[:, 0:1], predicted_id1], axis=-1) # add start token. tar22 is \hat{t} in the paper
+            enc_padding_mask3, combined_mask3, dec_padding_mask3 = create_masks(inp2, tar_inp)
+            enc_padding_mask4, combined_mask4, dec_padding_mask4 = create_masks(tar2, inp_inp)
+            predictions3, _ = transformer1(inp2, tar_inp, True, enc_padding_mask3, combined_mask3, dec_padding_mask3)
+            loss3 = loss_function(tar_real, predictions3) # predictions3 is \tilde{t} in the paper
+            predictions4, _ = transformer2(tar2, inp_inp, True, enc_padding_mask4, combined_mask4, dec_padding_mask4)
+            loss4 = loss_function(inp_real, predictions4) # predictions4 is \tilde{s} in the paper
+            loss = loss1 + loss2 + LAMBDA * (loss3 + loss4)            
+        else:
+            loss = loss1
         val_loss(loss)
-        val_accuracy(tar_real, predictions)
+        val_accuracy(tar_real, predictions1)
 
     
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
