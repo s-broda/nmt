@@ -47,19 +47,18 @@ def evaluate_transformer():
     input_vocab_size = tokenizer_de.vocab_size + 2
     target_vocab_size = tokenizer_en.vocab_size + 2
 
-    transformer = Transformer(num_layers, d_model, num_heads, dff,
+    transformer1 = Transformer(num_layers, d_model, num_heads, dff,
                               input_vocab_size, target_vocab_size,
                               pe_input=input_vocab_size,
                               pe_target=target_vocab_size,
                               rate=dropout_rate)
 
 
-    ckpt = tf.train.Checkpoint(transformer=transformer)
+    ckpt = tf.train.Checkpoint(transformer1=transformer1)
 
     ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
     ckpt.restore(ckpt_manager.latest_checkpoint).expect_partial()
     print ('Latest checkpoint restored!!')
-    #todo test if train really separate from train if we do not fix seed here
     examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
                                    as_supervised=True)
     test_examples = examples['test']
@@ -82,7 +81,7 @@ def evaluate_transformer():
             encoder_input, output)
 
         # predictions.shape == (batch_size, seq_len, vocab_size)
-        predictions, attention_weights = transformer(encoder_input,
+        predictions, attention_weights = transformer1(encoder_input,
                                                      output,
                                                      False,
                                                      enc_padding_mask,
