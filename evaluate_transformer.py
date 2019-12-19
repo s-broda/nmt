@@ -11,7 +11,7 @@ import numpy as np
 import os.path
 import argparse
 from transformer import Transformer, create_masks
-import matplotlib.pyplot as plt
+from beam_search import beam_search
 import nltk
 nltk.download('punkt')
 
@@ -20,12 +20,15 @@ checkpoint_path = "./checkpoints"
 output_path = "./output"
 data_path = './data'
 
-# Read Training parameters of this experiment
+# validation parameters
 parser = argparse.ArgumentParser()
 parser.add_argument("--experiment_name", type=str, required=True, help="Experiment to evaluate.")
-
+parser.add_argument("--beam_width", type=int, default=10, help="Beam width for search.") # https://arxiv.org/pdf/1609.08144.pdf
+parser.add_argument("--alpha", type=float, default=0.65, help="Length penalty.") # https://arxiv.org/pdf/1609.08144.pdf
 ARGS = parser.parse_args()
 experiment_name = ARGS.experiment_name
+beam_width = ARGS.beam_width
+alpha = ARGS.alpha
 
 # read config of experiment_name and store in respective variables
 checkpoint_path = os.path.normpath(os.path.join(checkpoint_path, experiment_name))
@@ -63,7 +66,7 @@ def evaluate_transformer():
                                    as_supervised=True)
     test_examples = examples['test']
 
-    def evaluate(inp_sentence):
+    def predict(inp_sentence):
       start_token = [tokenizer_de.vocab_size]
       end_token = [tokenizer_de.vocab_size + 1]
 
@@ -75,79 +78,44 @@ def evaluate_transformer():
       # english start token.
       decoder_input = [tokenizer_en.vocab_size]
       output = tf.expand_dims(decoder_input, 0)
+      
 
-      for i in range(MAX_LENGTH):
-        enc_padding_mask, combined_mask, dec_padding_mask = create_masks(
-            encoder_input, output)
-
-        # predictions.shape == (batch_size, seq_len, vocab_size)
-        predictions, attention_weights = transformer1(encoder_input,
+      # predictions.shape == (batch_size, seq_len, vocab_size)
+      def symbols_to_logits(output):          
+          batched_input = tf.tile(encoder_input, [beam_width, 1])
+          enc_padding_mask, combined_mask, dec_padding_mask = create_masks(
+            batched_input, output)
+          predictions, attention_weights = transformer1(batched_input,
                                                      output,
                                                      False,
                                                      enc_padding_mask,
                                                      combined_mask,
                                                      dec_padding_mask)
+          predictions = predictions[:, -1, :]
 
-        # select the last word from the seq_len dimension
-        predictions = predictions[: ,-1:, :]  # (batch_size, 1, vocab_size)
+          return  predictions
+      
+      finished_seq, finished_scores, states= beam_search(symbols_to_logits,
+                 output,
+                 beam_width,
+                 MAX_LENGTH,
+                 target_vocab_size,
+                 alpha,
+                 states=None,
+                 eos_id=tokenizer_en.vocab_size+1,
+                 stop_early=True,
+                 use_tpu=False,
+                 use_top_k_with_unique=True)
+      
+      return finished_seq[0, 0, :]
 
-        predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
-
-        # return the result if the predicted_id is equal to the end token
-        if predicted_id == tokenizer_en.vocab_size+1:
-          return tf.squeeze(output, axis=0), attention_weights
-
-        # concatentate the predicted_id to the output which is given to the decoder
-        # as its input.
-        output = tf.concat([output, predicted_id], axis=-1)
-
-      return tf.squeeze(output, axis=0), attention_weights
-
-    def plot_attention_weights(attention, sentence, result, layer):
-      fig = plt.figure(figsize=(16, 8))
-
-      sentence = tokenizer_de.encode(sentence)
-
-      attention = tf.squeeze(attention[layer], axis=0)
-
-      for head in range(attention.shape[0]):
-        ax = fig.add_subplot(2, 4, head+1)
-
-        # plot the attention weights
-        ax.matshow(attention[head][:-1, :], cmap='viridis')
-
-        fontdict = {'fontsize': 10}
-
-        ax.set_xticks(range(len(sentence)+2))
-        ax.set_yticks(range(len(result)))
-
-        ax.set_ylim(len(result)-1.5, -0.5)
-
-        ax.set_xticklabels(
-            ['<start>']+[tokenizer_de.decode([i]) for i in sentence]+['<end>'],
-            fontdict=fontdict, rotation=90)
-
-        ax.set_yticklabels([tokenizer_en.decode([i]) for i in result
-                            if i < tokenizer_en.vocab_size],
-                           fontdict=fontdict)
-
-        ax.set_xlabel('Head {}'.format(head+1))
-
-      plt.tight_layout()
-      plt.show()
-
-    def translate(sentence, plot=''):
-      result, attention_weights = evaluate(sentence)
-
+    def translate(sentence):
+      result = predict(sentence)
       predicted_sentence = tokenizer_en.decode([i for i in result
                                                 if i < tokenizer_en.vocab_size])
 
       print('Input: {}'.format(sentence))
       print('Predicted translation: {}'.format(predicted_sentence))
-
-      if plot:
-        plot_attention_weights(attention_weights, sentence, result, plot)
-
       return  predicted_sentence
 
     translations = []
