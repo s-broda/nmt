@@ -24,6 +24,9 @@ log_path = './logs'
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 parser.add_argument("--experiment_name", type=str, default=current_time, help="Insert string defining your experiment. Defaults to datetime.now()")
+parser.add_argument("--pretrained_name", type=str, default='',
+                    help="""Name of experiment from which to load pretrained model, if any. New checkpoints will be saved to --experiment_name. To create
+                    a pretrained model, train with RTL but set LAMBDA=0""")
 # training parameters
 parser.add_argument("--BUFFER_SIZE", type=int, default=4000, help="Train dataset buffer size.")
 parser.add_argument("--BATCH_SIZE", type=int, default=64, help="Batch size used.")
@@ -41,10 +44,10 @@ parser.add_argument("--dff", type=int, default=512, help="dff - base transformer
 parser.add_argument("--num_heads", type=int, default=8, help="number of attention heads - base transformer uses 8.")
 parser.add_argument("--dropout_rate", type=float, default=0.1, help="Dropout rate.")
 
-print('Experiment name is ' + current_time + '.')
 # read variables # todo clean up - can for sure be done more elegantly
 ARGS = parser.parse_args()
 experiment_name = ARGS.experiment_name
+pretrained_name = ARGS.pretrained_name
 BUFFER_SIZE = ARGS.BUFFER_SIZE
 BATCH_SIZE = ARGS.BATCH_SIZE
 MAX_LENGTH = ARGS.MAX_LENGTH
@@ -70,6 +73,7 @@ if not os.path.exists(val_log_dir):
     os.makedirs(val_log_dir)
 
 # save config of experiment in directory
+checkpoint_path_pretrained = os.path.normpath(os.path.join(checkpoint_path, pretrained_name))
 checkpoint_path = os.path.normpath(os.path.join(checkpoint_path, experiment_name))
 if not os.path.exists(checkpoint_path):
     os.makedirs(checkpoint_path)
@@ -195,13 +199,20 @@ def train():
                                        optimizer=optimizer)    
             
     ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
+    
     # endregion
 
     # region Train model
-    # if a checkpoint exists, restore the latest checkpoint.
-    if ckpt_manager.latest_checkpoint:
+    if pretrained_name:
+        latest = tf.train.latest_checkpoint(checkpoint_path_pretrained)
+        if latest:
+            ckpt.restore(latest)
+            print('Pretrained model loaded from ' + latest + '.')
+        else:
+            raise Exception('Pretrained model not found.')
+    elif ckpt_manager.latest_checkpoint:
         ckpt.restore(ckpt_manager.latest_checkpoint)
-        print('Latest checkpoint restored!!')
+        print('Latest checkpoint restored.')
 
     # The @tf.function trace-compiles train_step into a TF graph for faster
     # execution. The function specializes to the precise shape of the argument

@@ -58,10 +58,8 @@ def evaluate_transformer():
 
 
     ckpt = tf.train.Checkpoint(transformer1=transformer1)
-
-    ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
-    ckpt.restore(ckpt_manager.latest_checkpoint).expect_partial()
-    print ('Latest checkpoint restored!!')
+    ckpt.restore(tf.train.latest_checkpoint(checkpoint_path)).expect_partial()
+    print('Latest checkpoint restored!!')
     examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
                                    as_supervised=True)
     test_examples = examples['test']
