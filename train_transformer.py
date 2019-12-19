@@ -14,18 +14,10 @@ from transformer import CustomSchedule, Transformer, create_masks
 
 # region Setup Experiment parameters
 parser = argparse.ArgumentParser()
-parser.add_argument("--train_dir", type=str, help="Directory of nmt - needed for cluster")
-args_train_dir = parser.parse_args()
-train_dir = args_train_dir.train_dir
-
-# paths
-checkpoint_path = os.path.join(train_dir, "checkpoints")
-output_path = os.path.join(train_dir, "output")
-data_path = os.path.join(train_dir, "data")
-log_path = os.path.join(train_dir, "logs")
 
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
+parser.add_argument("--train_dir", type=str, help="Directory of nmt - needed for cluster")
 parser.add_argument("--experiment_name", type=str, default=current_time, help="Insert string defining your experiment. Defaults to datetime.now()")
 # training parameters
 parser.add_argument("--BUFFER_SIZE", type=int, default=4000, help="Train dataset buffer size.")
@@ -47,6 +39,7 @@ parser.add_argument("--dropout_rate", type=float, default=0.1, help="Dropout rat
 print('Experiment name is ' + current_time + '.')
 # read variables # todo clean up - can for sure be done more elegantly
 ARGS = parser.parse_args()
+train_dir = ARGS.train_dir
 experiment_name = ARGS.experiment_name
 BUFFER_SIZE = ARGS.BUFFER_SIZE
 BATCH_SIZE = ARGS.BATCH_SIZE
@@ -64,6 +57,11 @@ dff = ARGS.dff
 num_heads = ARGS.num_heads
 dropout_rate = ARGS.dropout_rate
 
+# paths
+checkpoint_path = os.path.join(train_dir, "checkpoints")
+output_path = os.path.join(train_dir, "output")
+data_path = os.path.join(train_dir, "data")
+log_path = os.path.join(train_dir, "logs")
 
 train_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/train')
 val_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/val')
