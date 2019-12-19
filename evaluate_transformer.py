@@ -135,8 +135,7 @@ def evaluate_transformer():
 
     d = {'input': inputs, 'target': targets, 'translation': translations, 'BLEU': BLEUs}
     df = pd.DataFrame.from_dict(d)
-    fn = 'results_' + experiment_name + '.csv'
-    df.to_csv(os.path.join(output_path, fn))
+    df.to_csv(os.path.join(output_path, 'results.csv'))
     print('Average BLEU score: ', 100 * np.mean(BLEUs))
 
 if __name__ == "__main__":
