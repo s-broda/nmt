@@ -14,12 +14,15 @@ from transformer import CustomSchedule, Transformer, create_masks
 
 # region Setup Experiment parameters
 parser = argparse.ArgumentParser()
+parser.add_argument("--train_dir", type=str, help="Directory of nmt - needed for cluster")
+args_train_dir = parser.parse_args()
+train_dir = args_train_dir.train_dir
 
 # paths
-checkpoint_path = "./checkpoints"
-output_path = "./output"
-data_path = './data'
-log_path = './logs'
+checkpoint_path = os.path.join(train_dir, "checkpoints")
+output_path = os.path.join(train_dir, "output")
+data_path = os.path.join(train_dir, "data")
+log_path = os.path.join(train_dir, "logs")
 
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 

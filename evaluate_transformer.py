@@ -15,20 +15,22 @@ from beam_search import beam_search
 import nltk
 nltk.download('punkt')
 
-# paths
-checkpoint_path = "./checkpoints"
-output_path = "./output"
-data_path = './data'
-
 # validation parameters
 parser = argparse.ArgumentParser()
+parser.add_argument("--train_dir", type=str, help="Directory of nmt - needed for cluster")
 parser.add_argument("--experiment_name", type=str, required=True, help="Experiment to evaluate.")
 parser.add_argument("--beam_width", type=int, default=10, help="Beam width for search.") # https://arxiv.org/pdf/1609.08144.pdf
 parser.add_argument("--alpha", type=float, default=0.65, help="Length penalty.") # https://arxiv.org/pdf/1609.08144.pdf
 ARGS = parser.parse_args()
+train_dir = ARGS.train_dir
 experiment_name = ARGS.experiment_name
 beam_width = ARGS.beam_width
 alpha = ARGS.alpha
+
+# paths
+checkpoint_path = os.path.join(train_dir, "checkpoints")
+output_path = os.path.join(train_dir, "output")
+data_path = os.path.join(train_dir, "data")
 
 # read config of experiment_name and store in respective variables
 checkpoint_path = os.path.normpath(os.path.join(checkpoint_path, experiment_name))
