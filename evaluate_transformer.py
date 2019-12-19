@@ -23,8 +23,8 @@ data_path = './data'
 # validation parameters
 parser = argparse.ArgumentParser()
 parser.add_argument("--experiment_name", type=str, required=True, help="Experiment to evaluate.")
-parser.add_argument("--beam_width", type=int, default=10, help="Beam width for search.")
-parser.add_argument("--alpha", type=float, default=0.65, help="Length penalty.")
+parser.add_argument("--beam_width", type=int, default=10, help="Beam width for search.") # https://arxiv.org/pdf/1609.08144.pdf
+parser.add_argument("--alpha", type=float, default=0.65, help="Length penalty.") # https://arxiv.org/pdf/1609.08144.pdf
 ARGS = parser.parse_args()
 experiment_name = ARGS.experiment_name
 beam_width = ARGS.beam_width
