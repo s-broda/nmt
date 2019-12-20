@@ -31,6 +31,10 @@ alpha = ARGS.alpha
 checkpoint_path = os.path.join(train_dir, "checkpoints")
 output_path = os.path.join(train_dir, "output")
 data_path = os.path.join(train_dir, "data")
+print('PATHS:   ')
+print(checkpoint_path)
+print(output_path)
+print(data_path)
 
 # read config of experiment_name and store in respective variables
 checkpoint_path = os.path.normpath(os.path.join(checkpoint_path, experiment_name))
