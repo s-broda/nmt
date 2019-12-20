@@ -74,6 +74,7 @@ def evaluate_transformer():
                                    as_supervised=True)
     if backtrans_train:
         test_examples = examples['train']
+        print('Backtranslating train set!')
     else:
         test_examples = examples['test']
 
@@ -144,15 +145,12 @@ def evaluate_transformer():
         print('Average BLEU score: ', 100 * np.mean(BLEUs))
         targets.append(target)
 
-    results_path = os.path.join(output_path, experiment_name)
-    if not os.path.exists(results_path):
-        os.makedirs(results_path)
     d = {'input': inputs, 'target': targets, 'translation': translations, 'BLEU': BLEUs}
     df = pd.DataFrame.from_dict(d)
     if backtrans_train:
-        df.to_csv(os.path.join(results_path, 'results_backtrans.csv'))
+        df.to_csv(os.path.join(output_path, 'results_backtrans_'+experiment_name+'.csv'))
     else:
-        df.to_csv(os.path.join(results_path, 'results.csv'))
+        df.to_csv(os.path.join(output_path, 'results'+experiment_name+'.csv'))
     print('Average BLEU score: ', 100 * np.mean(BLEUs))
 
 if __name__ == "__main__":
