@@ -19,6 +19,10 @@ current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 parser.add_argument("--train_dir", type=str, help="Directory of nmt - needed for cluster")
 parser.add_argument("--experiment_name", type=str, default=current_time, help="Insert string defining your experiment. Defaults to datetime.now()")
+parser.add_argument("--pretrained_name", type=str, default='',
+                    help="""Name of experiment from which to load pretrained model, if any. New checkpoints will be saved to --experiment_name. To create
+                    a pretrained model, train with RTL but set LAMBDA=0""")
+
 # training parameters
 parser.add_argument("--BUFFER_SIZE", type=int, default=4000, help="Train dataset buffer size.")
 parser.add_argument("--BATCH_SIZE", type=int, default=64, help="Batch size used.")
@@ -37,10 +41,12 @@ parser.add_argument("--num_heads", type=int, default=8, help="number of attentio
 parser.add_argument("--dropout_rate", type=float, default=0.1, help="Dropout rate.")
 
 print('Experiment name is ' + current_time + '.')
-# read variables # todo clean up - can for sure be done more elegantly
+# read variables
 ARGS = parser.parse_args()
 train_dir = ARGS.train_dir
 experiment_name = ARGS.experiment_name
+pretrained_name = ARGS.pretrained_name
+
 BUFFER_SIZE = ARGS.BUFFER_SIZE
 BATCH_SIZE = ARGS.BATCH_SIZE
 MAX_LENGTH = ARGS.MAX_LENGTH
@@ -67,6 +73,7 @@ print(checkpoint_path)
 print(output_path)
 print(data_path)
 print(log_path)
+
 train_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/train')
 val_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/val')
 if not os.path.exists(train_log_dir):
@@ -75,6 +82,8 @@ if not os.path.exists(val_log_dir):
     os.makedirs(val_log_dir)
 
 # save config of experiment in directory
+if pretrained_name != '':
+    checkpoint_path_pretrained = os.path.normpath(os.path.join(checkpoint_path, pretrained_name))
 checkpoint_path = os.path.normpath(os.path.join(checkpoint_path, experiment_name))
 if not os.path.exists(checkpoint_path):
     os.makedirs(checkpoint_path)
@@ -203,10 +212,16 @@ def train():
     # endregion
 
     # region Train model
-    # if a checkpoint exists, restore the latest checkpoint.
-    if ckpt_manager.latest_checkpoint:
+    if pretrained_name:
+        latest = tf.train.latest_checkpoint(checkpoint_path_pretrained)
+        if latest:
+            ckpt.restore(latest)
+            print('Pretrained model loaded from ' + latest + '.')
+        else:
+            raise Exception('Pretrained model not found.')
+    elif ckpt_manager.latest_checkpoint:
         ckpt.restore(ckpt_manager.latest_checkpoint)
-        print('Latest checkpoint restored!!')
+        print('Latest checkpoint restored.')
 
     # The @tf.function trace-compiles train_step into a TF graph for faster
     # execution. The function specializes to the precise shape of the argument
@@ -234,17 +249,19 @@ def train():
             if USE_RTL:
                 predictions2, _ = transformer2(tar, inp_inp, True, enc_padding_mask2, combined_mask2, dec_padding_mask2)
                 loss2 = loss_function(inp_real, predictions2) # this is en->de
-                predicted_id2 = tf.argmax(predictions2, axis=-1) # find most likely token from logits
-                inp2 = tf.concat([inp[:, 0:1], predicted_id2], axis=-1) # add start token. inp2 is \hat{s} in the paper
-                predicted_id1 = tf.argmax(predictions1, axis=-1) # find most likely token from logits
-                tar2 = tf.concat([tar[:, 0:1], predicted_id1], axis=-1) # add start token. tar22 is \hat{t} in the paper
-                enc_padding_mask3, combined_mask3, dec_padding_mask3 = create_masks(inp2, tar_inp)
-                enc_padding_mask4, combined_mask4, dec_padding_mask4 = create_masks(tar2, inp_inp)
-                predictions3, _ = transformer1(inp2, tar_inp, True, enc_padding_mask3, combined_mask3, dec_padding_mask3)
-                loss3 = loss_function(tar_real, predictions3) # predictions3 is \tilde{t} in the paper
-                predictions4, _ = transformer2(tar2, inp_inp, True, enc_padding_mask4, combined_mask4, dec_padding_mask4)
-                loss4 = loss_function(inp_real, predictions4) # predictions4 is \tilde{s} in the paper
-                loss = loss1 + loss2 + LAMBDA * (loss3 + loss4)            
+                loss = loss1 + loss2
+                if LAMBDA>0:
+                    predicted_id2 = tf.argmax(predictions2, axis=-1) # find most likely token from logits
+                    inp2 = tf.concat([inp[:, 0:1], predicted_id2], axis=-1) # add start token. inp2 is \hat{s} in the paper
+                    predicted_id1 = tf.argmax(predictions1, axis=-1) # find most likely token from logits
+                    tar2 = tf.concat([tar[:, 0:1], predicted_id1], axis=-1) # add start token. tar22 is \hat{t} in the paper
+                    enc_padding_mask3, combined_mask3, dec_padding_mask3 = create_masks(inp2, tar_inp)
+                    enc_padding_mask4, combined_mask4, dec_padding_mask4 = create_masks(tar2, inp_inp)
+                    predictions3, _ = transformer1(inp2, tar_inp, True, enc_padding_mask3, combined_mask3, dec_padding_mask3)
+                    loss3 = loss_function(tar_real, predictions3) # predictions3 is \tilde{t} in the paper
+                    predictions4, _ = transformer2(tar2, inp_inp, True, enc_padding_mask4, combined_mask4, dec_padding_mask4)
+                    loss4 = loss_function(inp_real, predictions4) # predictions4 is \tilde{s} in the paper
+                    loss += LAMBDA * (loss3 + loss4)
             else:
                 loss = loss1
         if USE_RTL:        

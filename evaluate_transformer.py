@@ -21,6 +21,7 @@ parser.add_argument("--train_dir", type=str, help="Directory of nmt - needed for
 parser.add_argument("--experiment_name", type=str, required=True, help="Experiment to evaluate.")
 parser.add_argument("--beam_width", type=int, default=10, help="Beam width for search.") # https://arxiv.org/pdf/1609.08144.pdf
 parser.add_argument("--alpha", type=float, default=0.65, help="Length penalty.") # https://arxiv.org/pdf/1609.08144.pdf
+
 ARGS = parser.parse_args()
 train_dir = ARGS.train_dir
 experiment_name = ARGS.experiment_name
@@ -64,10 +65,8 @@ def evaluate_transformer():
 
 
     ckpt = tf.train.Checkpoint(transformer1=transformer1)
-
-    ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
-    ckpt.restore(ckpt_manager.latest_checkpoint).expect_partial()
-    print ('Latest checkpoint restored!!')
+    ckpt.restore(tf.train.latest_checkpoint(checkpoint_path)).expect_partial()
+    print('Latest checkpoint restored!!')
     examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
                                    as_supervised=True)
     test_examples = examples['test']
