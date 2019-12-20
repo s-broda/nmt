@@ -5,6 +5,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import tensorflow_datasets as tfds
 import tensorflow as tf
+import pandas as pd
 import time
 import json
 import datetime
@@ -22,7 +23,8 @@ parser.add_argument("--experiment_name", type=str, default=current_time, help="I
 parser.add_argument("--pretrained_name", type=str, default='',
                     help="""Name of experiment from which to load pretrained model, if any. New checkpoints will be saved to --experiment_name. To create
                     a pretrained model, train with RTL but set LAMBDA=0""")
-
+parser.add_argument("--include_backtrans_of_model", type=str, default='',
+                    help="if modelname is added training data is extended with formerly backtranslated training data")
 # training parameters
 parser.add_argument("--BUFFER_SIZE", type=int, default=4000, help="Train dataset buffer size.")
 parser.add_argument("--BATCH_SIZE", type=int, default=64, help="Batch size used.")
@@ -46,6 +48,7 @@ ARGS = parser.parse_args()
 train_dir = ARGS.train_dir
 experiment_name = ARGS.experiment_name
 pretrained_name = ARGS.pretrained_name
+include_backtrans_of_model = ARGS.include_backtrans_of_model
 
 BUFFER_SIZE = ARGS.BUFFER_SIZE
 BATCH_SIZE = ARGS.BATCH_SIZE
@@ -160,19 +163,36 @@ def train():
 
     examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
                                    as_supervised=True, split=[split, 'validation'])
-    train_examples, val_examples = examples[0], examples[1]
+    train_examples, val_examples = examples[0], examples[1] # <_OptionsDataset shapes: ((), ()), types: (tf.string, tf.string)>
 
-    train_dataset = train_examples.map(tf_encode)
+    if len(include_backtrans_of_model) > 0:
+        print('adding backtranslated train data sequences to training set')
+        path2backtranslation = os.path.join(output_path, 'results_backtrans_'+include_backtrans_of_model+'.csv')
+        if not os.path.exists(path2backtranslation):
+            raise Exception('First you need to create the backtranslated sequences in evaluate_transformer w option backtrans_train!')
+
+        df_backtrans = pd.read_csv(path2backtranslation, index_col=0)
+        ar_backtrans_input = df_backtrans['input'].values
+        ar_backtrans_backtrans = df_backtrans['translation'].values
+
+        train_backtrans_input = tf.data.Dataset.from_tensor_slices(ar_backtrans_input)
+        train_backtrans_backtrans = tf.data.Dataset.from_tensor_slices(ar_backtrans_backtrans)
+        train_backtrans = tf.data.Dataset.zip((train_backtrans_input, train_backtrans_backtrans)) # <ZipDataset shapes: ((), ()), types: (tf.string, tf.string)>
+
+        # merge train_backtrans with train_examples
+        train_examples = train_examples.concatenate(train_backtrans) # <ConcatenateDataset shapes: ((), ()), types: (tf.string, tf.string)>
+
+    train_dataset = train_examples.map(tf_encode) # <MapDataset shapes: (<unknown>, <unknown>), types: (tf.int64, tf.int64)>
     train_dataset = train_dataset.filter(filter_max_length)
     # cache the dataset to memory to get a speedup while reading from it.
     train_dataset = train_dataset.cache()
     train_dataset = train_dataset.shuffle(BUFFER_SIZE).padded_batch(BATCH_SIZE, padded_shapes=([-1], [-1]))
-    train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE) # <PrefetchDataset shapes: ((None, None), (None, None)), types: (tf.int64, tf.int64)>
     # endregion
 
     # region Prepare Validation dataset
     val_dataset = val_examples.map(tf_encode)
-    val_dataset = val_dataset.filter(filter_max_length).padded_batch(BATCH_SIZE, padded_shapes=([-1], [-1]))
+    val_dataset = val_dataset.filter(filter_max_length).padded_batch(BATCH_SIZE, padded_shapes=([-1], [-1])) # <PaddedBatchDataset shapes: ((None, None), (None, None)), types: (tf.int64, tf.int64)>
     # endregion
 
     # region Define Modelling setup

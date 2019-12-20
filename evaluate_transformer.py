@@ -150,7 +150,7 @@ def evaluate_transformer():
     if backtrans_train:
         df.to_csv(os.path.join(output_path, 'results_backtrans_'+experiment_name+'.csv'))
     else:
-        df.to_csv(os.path.join(output_path, 'results'+experiment_name+'.csv'))
+        df.to_csv(os.path.join(output_path, 'results_'+experiment_name+'.csv'))
     print('Average BLEU score: ', 100 * np.mean(BLEUs))
 
 if __name__ == "__main__":
