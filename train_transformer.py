@@ -62,7 +62,11 @@ checkpoint_path = os.path.join(train_dir, "checkpoints")
 output_path = os.path.join(train_dir, "output")
 data_path = os.path.join(train_dir, "data")
 log_path = os.path.join(train_dir, "logs")
-
+print('PATHS:   ')
+print(checkpoint_path)
+print(output_path)
+print(data_path)
+print(log_path)
 train_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/train')
 val_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/val')
 if not os.path.exists(train_log_dir):
