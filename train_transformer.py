@@ -43,6 +43,8 @@ parser.add_argument("--num_heads", type=int, default=8, help="number of attentio
 parser.add_argument("--dropout_rate", type=float, default=0.1, help="Dropout rate.")
 
 print('Experiment name is ' + current_time + '.')
+print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+
 # read variables
 ARGS = parser.parse_args()
 train_dir = ARGS.train_dir
@@ -133,7 +135,7 @@ def train():
     # read previously created tokenizers if they exist
     if (os.path.isfile(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE) + ".subwords")) &
             os.path.isfile(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE) + ".subwords"))):
-
+        
         tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(
             os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
         tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file(
