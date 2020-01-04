@@ -1,0 +1,70 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage{amsthm,amsmath,amsfonts,exscale,latexsym,graphicx}
+\usepackage{times}
+%\usepackage[mtpcal,mtphrb,subscriptcorrection]{mtpro2}
+\usepackage{natbib}
+\usepackage[usenames]{color}
+\usepackage[pagebackref,colorlinks=true,breaklinks,linkcolor=Gray,citecolor=Gray,urlcolor=Gray,bookmarks,pdfpagemode=UseOutlines,pdftitle={Project Proposal: Round Trip Loss for Machine Translation}]{hyperref}
+
+\bibliographystyle{apalike}
+%shortcuts
+\def\beq{\begin{equation}}
+\def\eeq{\end{equation}}
+\begin{document}
+\title{Project Proposal: Round Trip Loss for Machine Translation}
+\date{\today}
+\author{
+Anja Adamov$\mbox{}^a$\thanks{\emph{E-mail address:} adamova@student.ethz.ch},
+Lauro B\"{o}ni$\mbox{}^b$\thanks{\emph{E-mail address:} laboeni@gmail.com},
+Simon A.\ Broda$\mbox{}^c\mbox{}^d\mbox{}^e$\thanks{\emph{E-mail address:} simon.broda@uzh.ch},
+Urs V\"{o}geli$\mbox{}^b$\thanks{\emph{E-mail address:} voegeli.urs@gmail.com}
+\medskip \\
+\textit{\small $\mbox{}^a$IBM Switzerland Ltd., Zurich, Switzerland}
+\medskip \\
+\textit{\small $\mbox{}^b$ETH Zurich}
+\medskip \\
+\textit{\small $\mbox{}^c$Department of Banking and Finance, University of Zurich}
+\medskip \\
+\textit{\small $\mbox{}^d$Quantitative Economics Section, University of Amsterdam}
+\medskip \\
+\textit{\small $\mbox{}^e$Tinbergen Institute Amsterdam}
+}
+\maketitle \setcounter{page}{0}\thispagestyle{empty}
+\definecolor{Gray}{rgb}{0.5,0.5,0.5}
+\begin{abstract}
+We propose to augment a machine translation system by adding a round-trip loss which encourages the system to generate translations that when translated back into the source language, retain much of the original structure. We show that in doing so, the model will learn internal representations with improved semantic meaning.
+\end{abstract}
+\bigskip \textbf{Key Words}: Cycle consistency loss; deep learning; natural language understanding; machine translation; round-trip loss.
+%\renewcommand{\baselinestretch}{1.3}\small\normalsize
+\newpage
+\setcounter{page}{1}
+\section{Introduction}
+Machine translation is an important task within the field of natural language understanding. Consequently, a variety of models have been proposed for solving it. One of the first truly successful models was the sequence-to-sequence (seq2seq) model of \citet{seq2seq}, while the current state of the art builds upon the \emph{Transformer} architecture introduced by \citet{transformer}. At a high level, both the seq2seq and the transformer architectures are comprised of an encoder and decoder; the encoder learns an internal representation of the source sentence, and the decoder decodes it into the target language. For these models to work, the internal representation must capture the semantic meaning of the source sentence.
+
+Irrespective of the architecture, these models are typically trained with the cross-entropy loss between the ground truth and predicted sentences, usually with teacher forcing.
+Here, we propose to add a round-trip penalty to the loss function of the model. The idea is that instead of training a single model to translate from a source language $\mathcal{S}$ to a target language $\mathcal{T}$, one trains two models (of identical structure), one mapping $\mathcal{S}\mapsto \mathcal{T}$ and one mapping $\mathcal{T}\mapsto \mathcal{S}$. The two models are, at first, trained independently and in parallel, by feeding in the same batches of sentence pairs (In this paper, we rely on the Transformer architecture of \citet{transformer}, but the idea applies to any encoder-decoder architecture). After $\tau$ epochs, the models is then trained jointly, using as loss a sum of four cross-entropy terms, viz.,
+\begin{equation}
+\mathcal{L} = CE(s, \hat{s}) + CE(t, \hat{t}) + \lambda \left( CE(s, \tilde{s}) + CE(t, \tilde{t})\right).
+\label{eq:RTL}
+\end{equation}
+Here, $s\in\mathcal{S}$ is the ground truth sentence in the first language, $t\in\mathcal{T}$ is the corresponding ground truth in the second language, $\hat{s}\in\mathcal{S}$ and $\hat{t}\in\mathcal{T}$ are the respective translations of $t$ and $s$, $\tilde{s}$ is obtained by translating $\hat{t}$ back to $\mathcal{S}$, and $\tilde{t}$ is obtained by translating $\hat{s}$ back to $\mathcal{T}$. $\tau$ and $\lambda$ are hyperparameters. 
+
+The round-trip loss is inspired by the cycle consistency loss pioneered by \citet{CycleGAN2017} in the context of GANs. The only application of this concept to the field of machine translation of which we are aware is \citet{su:2018}, who adapt it for unsupervised multi-modal machine translation. Here, we propose to apply the idea to supervised machine translation. We conjecture that encouraging the model to generate round-trippable translations will help it learn a semantically meaningful representation. A related idea is that of back-translation, pioneered by \citet{backtrans}. \citeauthor{backtrans} propose to augment the parallel training corpus used to train a machine translation system with synthetic data, obtained by translating a monolingual corpus in the target language to the source language using an independently trained system. They argue that this is beneficial in particular when parallel training data is scarce. The difference with our approach is two-fold: i) in our approach, the two networks are trained \emph{jointly}, each with their own round-trip loss term, whereas in back-translation, the models are trained separately, with only one of them benefiting from back-translation; ii) we do not assume the existence of a separate monolingual corpus in the target language, but work strictly with a parallel corpus. Having ground truth available, we are thus able to use teacher forcing in constructing the round-trip loss contribution, greatly speeding up training.
+
+The remainder of this manuscript is organized as follows. Section \ref{sec:models} describes the model architecture and our implementation of it. Section \ref{sec:results} details the results of our experiments with the proposed round-trip loss. Section \ref{sec:discussion} provides a discussion, and Section \ref{sec:conclusions} concludes.
+\section{Models and Methods}\label{sec:models}
+\subsection{Model Architecture}
+{\bf description of Transformer goes here, perhaps including some pictures from the paper}
+\subsection{Implementation}
+We use the Transformer implementation in TensorFlow 2.0 available from the \href{https://www.tensorflow.org/tutorials/text/transformer}{tensorflow website} and implement a custom training loop, which instantiates the $\mathcal{S}\mapsto\mathcal{T}$ and $\mathcal{T}\mapsto\mathcal{S}$ models and trains them jointly with the loss described in \eqref{eq:RTL}. At test time, we rely on the beam search implementation from \href{https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/utils}{tensor2tensor}, and compute the BLEU score using the \href{https://www.nltk.org/}{nltk} package.
+
+\subsection{Training Details}
+We train our models on the WMT'14 English-German data set available from \href{https://nlp.stanford.edu/projects/nmt/}{https://nlp.stanford.edu/projects/nmt/}. The models hyperparameters are set as follows: 
+\section{Results}\label{sec:results}
+\subsection{Numerical comparisons}
+\subsection{Example Translations}
+\section{Discussion}\label{sec:discussion}
+\section{Summary}\label{sec:conclusions}
+\bibliography{proposal}
+\end{document}
+
