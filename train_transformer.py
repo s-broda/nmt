@@ -5,6 +5,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import tensorflow_datasets as tfds
 import tensorflow as tf
+import pandas as pd
 import time
 import json
 import datetime
@@ -15,18 +16,15 @@ from transformer import CustomSchedule, Transformer, create_masks
 # region Setup Experiment parameters
 parser = argparse.ArgumentParser()
 
-# paths
-checkpoint_path = "./checkpoints"
-output_path = "./output"
-data_path = './data'
-log_path = './logs'
-
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
+parser.add_argument("--train_dir", type=str, help="Directory of nmt - needed for cluster")
 parser.add_argument("--experiment_name", type=str, default=current_time, help="Insert string defining your experiment. Defaults to datetime.now()")
 parser.add_argument("--pretrained_name", type=str, default='',
                     help="""Name of experiment from which to load pretrained model, if any. New checkpoints will be saved to --experiment_name. To create
                     a pretrained model, train with RTL but set LAMBDA=0""")
+parser.add_argument("--include_backtrans_of_model", type=str, default='',
+                    help="if modelname is added training data is extended with formerly backtranslated training data")
 # training parameters
 parser.add_argument("--BUFFER_SIZE", type=int, default=4000, help="Train dataset buffer size.")
 parser.add_argument("--BATCH_SIZE", type=int, default=64, help="Batch size used.")
@@ -44,10 +42,16 @@ parser.add_argument("--dff", type=int, default=512, help="dff - base transformer
 parser.add_argument("--num_heads", type=int, default=8, help="number of attention heads - base transformer uses 8.")
 parser.add_argument("--dropout_rate", type=float, default=0.1, help="Dropout rate.")
 
-# read variables # todo clean up - can for sure be done more elegantly
+print('Experiment name is ' + current_time + '.')
+print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+
+# read variables
 ARGS = parser.parse_args()
+train_dir = ARGS.train_dir
 experiment_name = ARGS.experiment_name
 pretrained_name = ARGS.pretrained_name
+include_backtrans_of_model = ARGS.include_backtrans_of_model
+
 BUFFER_SIZE = ARGS.BUFFER_SIZE
 BATCH_SIZE = ARGS.BATCH_SIZE
 MAX_LENGTH = ARGS.MAX_LENGTH
@@ -64,6 +68,16 @@ dff = ARGS.dff
 num_heads = ARGS.num_heads
 dropout_rate = ARGS.dropout_rate
 
+# paths
+checkpoint_path = os.path.join(train_dir, "checkpoints")
+output_path = os.path.join(train_dir, "output")
+data_path = os.path.join(train_dir, "data")
+log_path = os.path.join(train_dir, "logs")
+print('PATHS:   ')
+print(checkpoint_path)
+print(output_path)
+print(data_path)
+print(log_path)
 
 train_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/train')
 val_log_dir = os.path.normpath(log_path + '/' + experiment_name + '/val')
@@ -73,7 +87,8 @@ if not os.path.exists(val_log_dir):
     os.makedirs(val_log_dir)
 
 # save config of experiment in directory
-checkpoint_path_pretrained = os.path.normpath(os.path.join(checkpoint_path, pretrained_name))
+if pretrained_name != '':
+    checkpoint_path_pretrained = os.path.normpath(os.path.join(checkpoint_path, pretrained_name))
 checkpoint_path = os.path.normpath(os.path.join(checkpoint_path, experiment_name))
 if not os.path.exists(checkpoint_path):
     os.makedirs(checkpoint_path)
@@ -120,7 +135,7 @@ def train():
     # read previously created tokenizers if they exist
     if (os.path.isfile(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE) + ".subwords")) &
             os.path.isfile(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE) + ".subwords"))):
-
+        
         tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(
             os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
         tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file(
@@ -150,19 +165,36 @@ def train():
 
     examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
                                    as_supervised=True, split=[split, 'validation'])
-    train_examples, val_examples = examples[0], examples[1]
+    train_examples, val_examples = examples[0], examples[1] # <_OptionsDataset shapes: ((), ()), types: (tf.string, tf.string)>
 
-    train_dataset = train_examples.map(tf_encode)
+    if len(include_backtrans_of_model) > 0:
+        print('adding backtranslated train data sequences to training set')
+        path2backtranslation = os.path.join(output_path, 'results_backtrans_'+include_backtrans_of_model+'.csv')
+        if not os.path.exists(path2backtranslation):
+            raise Exception('First you need to create the backtranslated sequences in evaluate_transformer w option backtrans_train!')
+
+        df_backtrans = pd.read_csv(path2backtranslation, index_col=0)
+        ar_backtrans_input = df_backtrans['input'].values
+        ar_backtrans_backtrans = df_backtrans['translation'].values
+
+        train_backtrans_input = tf.data.Dataset.from_tensor_slices(ar_backtrans_input)
+        train_backtrans_backtrans = tf.data.Dataset.from_tensor_slices(ar_backtrans_backtrans)
+        train_backtrans = tf.data.Dataset.zip((train_backtrans_input, train_backtrans_backtrans)) # <ZipDataset shapes: ((), ()), types: (tf.string, tf.string)>
+
+        # merge train_backtrans with train_examples
+        train_examples = train_examples.concatenate(train_backtrans) # <ConcatenateDataset shapes: ((), ()), types: (tf.string, tf.string)>
+
+    train_dataset = train_examples.map(tf_encode) # <MapDataset shapes: (<unknown>, <unknown>), types: (tf.int64, tf.int64)>
     train_dataset = train_dataset.filter(filter_max_length)
     # cache the dataset to memory to get a speedup while reading from it.
     train_dataset = train_dataset.cache()
     train_dataset = train_dataset.shuffle(BUFFER_SIZE).padded_batch(BATCH_SIZE, padded_shapes=([-1], [-1]))
-    train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE) # <PrefetchDataset shapes: ((None, None), (None, None)), types: (tf.int64, tf.int64)>
     # endregion
 
     # region Prepare Validation dataset
     val_dataset = val_examples.map(tf_encode)
-    val_dataset = val_dataset.filter(filter_max_length).padded_batch(BATCH_SIZE, padded_shapes=([-1], [-1]))
+    val_dataset = val_dataset.filter(filter_max_length).padded_batch(BATCH_SIZE, padded_shapes=([-1], [-1])) # <PaddedBatchDataset shapes: ((None, None), (None, None)), types: (tf.int64, tf.int64)>
     # endregion
 
     # region Define Modelling setup
@@ -199,7 +231,6 @@ def train():
                                        optimizer=optimizer)    
             
     ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
-    
     # endregion
 
     # region Train model
@@ -252,7 +283,7 @@ def train():
                     loss3 = loss_function(tar_real, predictions3) # predictions3 is \tilde{t} in the paper
                     predictions4, _ = transformer2(tar2, inp_inp, True, enc_padding_mask4, combined_mask4, dec_padding_mask4)
                     loss4 = loss_function(inp_real, predictions4) # predictions4 is \tilde{s} in the paper
-                    loss += LAMBDA * (loss3 + loss4)            
+                    loss += LAMBDA * (loss3 + loss4)
             else:
                 loss = loss1
         if USE_RTL:        
