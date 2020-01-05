@@ -1,0 +1,20 @@
+{
+    "BATCH_SIZE": 64,
+    "BUFFER_SIZE": 4000,
+    "DICT_SIZE": 16384,
+    "EPOCHS": 15,
+    "LAMBDA": 0.0,
+    "MAX_LENGTH": 40,
+    "NO_RTL": false,
+    "TRAIN_ON": 100,
+    "WARMUP_STEPS": 4000,
+    "d_model": 128,
+    "dff": 512,
+    "dropout_rate": 0.1,
+    "experiment_name": "lambda_0_dict_2pow14",
+    "include_backtrans_of_model": "",
+    "num_heads": 8,
+    "num_layers": 4,
+    "pretrained_name": "",
+    "train_dir": "."
+}
