@@ -106,7 +106,7 @@ venv.bak/
 # tensorflow
 /training_checkpoints
 /checkpoints/*
-!/checkpoints/pretrained/
+!/checkpoints/pretrained*/
 /data
 /logs
 /output/results.csv
