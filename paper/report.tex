@@ -37,7 +37,7 @@ We propose to augment a machine translation system by adding a round-trip loss w
 \newpage
 \setcounter{page}{1}
 \section{Introduction}
-Machine translation is an important task within the field of natural language understanding. Consequently, a variety of models have been proposed for solving it. One of the first truly successful models was the sequence-to-sequence (seq2seq) model of \citet{seq2seq}, while the current state of the art builds upon the \emph{Transformer} architecture introduced by \citet{transformer}. At a high level, both the seq2seq and the transformer architectures are comprised of an encoder and decoder; the encoder learns an internal representation of the source sentence, and the decoder decodes it into the target language. For these models to work, the internal representation must capture the semantic meaning of the source sentence.
+Machine translation is an important task within the field of natural language understanding. Consequently, a variety of models have been proposed for solving it. One of the first truly successful models was the sequence-to-sequence (seq2seq) model of \citet{seq2seq}, while the current state of the art builds upon the \emph{Transformer} architecture introduced by \citet{transformer}. At a high level, both the seq2seq and the Transformer architectures are comprised of an encoder and decoder; the encoder learns an internal representation of the source sentence, and the decoder decodes it into the target language. For these models to work, the internal representation must capture the semantic meaning of the source sentence.
 
 Irrespective of the architecture, these models are typically trained with the cross-entropy loss between the ground truth and predicted sentences, usually with teacher forcing.
 Here, we propose to add a round-trip penalty to the loss function of the model. The idea is that instead of training a single model to translate from a source language $\mathcal{S}$ to a target language $\mathcal{T}$, one trains two models (of identical structure), one mapping $\mathcal{S}\mapsto \mathcal{T}$ and one mapping $\mathcal{T}\mapsto \mathcal{S}$. The two models are, at first, trained independently and in parallel, by feeding in the same batches of sentence pairs (in this paper, we rely on the Transformer architecture of \citet{transformer}, but the idea applies to any encoder-decoder architecture). After $\tau$ epochs, the models are then trained jointly, using as loss a sum of four cross-entropy terms, viz.,
@@ -52,52 +52,40 @@ The round-trip loss is inspired by the cycle consistency loss pioneered by \cite
 The remainder of this manuscript is organized as follows. Section \ref{sec:models} describes the model architecture and our implementation of it. Section \ref{sec:results} details the results of our experiments with the proposed round-trip loss. Section \ref{sec:discussion} provides a discussion, and Section \ref{sec:conclusions} concludes.
 \section{Models and Methods}\label{sec:models}
 \subsection{Model Architecture}
-{\bf TODO: explain what $d_{ff}$, $d_{model}$ are so we can refer to it later}
-As described in previous sections, we have based our model extension on the transformer model implementation at \texttt{cite}. The core idea behind the classical transformer model is the so-called self-attention — the model's ability to attend to different positions of the input sequence to compute a representation of that sequence. (ref: https://www.tensorflow.org/tutorials/text/transformer)
 
-For deep neural networks performing aiming to perform sequence translation, some general sort of memory is required as, in practice, a lot of sequences depend on words from previous sequences. As an example for the reader, try to complete the phrases "My father is a winegrower. He likes to drink {\tt ...}". In this case, you might guess the missing word "wine" correctly - with the help of attention. And this is exactly, what modern natural language models try to capture.
+This section is, unless explicitly stated otherwise, based on \cite{transformer}. Useful background information on Recurrent and Convolutional Neural Networks is based on \cite{Goodfellow-et-al-2016}.
 
-Recurrent Neural Networks (short: RNN) tackle this problem by a specific architecture that focuses on time-dependencies. However, they are hardly or even not parallelizable and hence computationally suboptimal. 
-On the other hand, Convolution Neural Networks (short: CNN) are easily parallelizable and can exploit local dependencies. However, these models do not explicitly focus on the attention part. 
+The core idea behind the classical Transformer model is the so-called self-attention — the model's ability to attend to different positions of the input sequence to compute a representation of that sequence - without imposing any recurrence nor convolution to the model.
 
-The transformer model is a combination of a CNN together with attention - more precisely with self-attention. In a nutshell, the transformer model consists of a set of encoders (EC) and set of decoders (DC). The ECs map input sequences $(x_1,...,x_n)$ to its continuous representation, say, $(z_1,...,z_n)$ which in turn is used by DCs to generate the output respective the translated prediction $(y_1,...,y_m)$.
+For deep neural networks aiming to perform sequence translation, some general sort of memory is required as, in practice, a lot of sequences depend on words from previous sequences. As an example for the reader, try to complete the phrases "My father is a winegrower. He likes to drink {\tt ...}". In this case, you might guess the missing word "wine" correctly - with the help of attention. And this is exactly, what modern natural language models try to capture.
 
-More precisely, each EC consists of two components: self-attention and feed-forward neural networks (FNN). The self-attention mechanism takes in a set of input encodings from the previous EC and weighs their relevance to each other to generate a set of output encodings. The FNN then further processes each output encoding individually. These output encodings are finally passed to the next EC as its input, as well as to the DC. \textbf{cite wikipedia}
+Recurrent Neural Networks (short: RNN) tackle this problem by a specific architecture that focuses on time-dependencies. However, they are hardly or even not parallelizable and hence computationally suboptimal.
+On the other hand, Convolution Neural Networks (short: CNN) are easily parallelizable and can exploit local dependencies. However, these models do not explicitly rely on the attention. 
 
-On the other hand, each DC consists of three components: self-attention, an attention mechanism over the encodings and a FNN. The first EC takes positional information and embeddings of the input sequence as its input, rather than encodings. The positional information is necessary for the transformer to make use of the order of the sequence. Each DC functions in a similar fashion to the ECs, but an additional attention mechanism is inserted which instead draws relevant information from the encodings generated by the EC. Like the first EC, the first DC takes positional information and embeddings of the output sequence as its input, rather than embeddings. The last DC is followed by a final linear transformation and softmax layer, to produce the desired output probabilities.
-
-\begin{figure}[h]
+\begin{figure}[ht]
     \centering
     \includegraphics[scale=0.5]{images/Transformer.PNG}
-    \caption{Architecture of the Transformer model}
-    % cite: https://arxiv.org/pdf/1706.03762.pdf
+    \caption{Architecture of the Transformer model from \cite{transformer}.}
     \label{fig:transformer}
 \end{figure}
 
-This somehow abstract description is visualized in Figure \ref{fig:transformer}, where the original model in (\textbf{cite}) uses $N=6$, i.e. 6-fold stacking of the respective ECs and DCs.
+The Transformer model solely relies on attention - more precisely on self-attention - to capture global dependencies between input and output. In a nutshell, the model consists of a set of encoders (EC) and set of decoders (DC). The original model in (\citet{transformer}) uses $N=6$, i.e. 6-fold stacking of the respective ECs and DCs. Each EC maps input sequences $(x_1,...,x_n)$ to its continuous representation, say, $(z_1,...,z_n)$ which in turn are used by DCs to generate the output respective the translated prediction $(y_1,...,y_m)$.
 
-The self-attention part in both the EC as well as DC consists of a quite involved procedure that, in a nutshell, learns contextual dependencies. The authors of \textbf{cite} visualized the attention part by Figure \ref{fig:attention}:
+More precisely, each EC consists of two components: self-attention and feed-forward neural networks (FNN). The self-attention mechanism takes in a set of input encodings of length $d_{\text{model}} = 512$ from the previous EC, splits it up to a key, value and query vector (each of length $d = 64$) and then tries to learn their relevance to each other to generate a set of output encodings, again of length $d_{\text{model}}$. The FNN then further processes each output encoding individually (the dimensionality of the input and output is therefore $d_{\text{model}}$, whereas the size of the inner-layer is $d_{\text{ff}} = 2048$). The output encodings are then finally passed to the next EC as its input, as well as to the DC.
 
-\begin{figure}[h]
+On the other hand, each DC consists of three components: self-attention, an attention mechanism over the encodings and a classical FNN. The first EC takes positional information and embeddings of the input sequence as its input, rather than encodings. The positional information is necessary for the Transformer to make use of the order of the sequence, as it does not rely on recurrence nor convolution. Each DC functions in a similar fashion to the ECs, but an additional (masked) attention mechanism is inserted which draws relevant information from the encodings generated by the EC. Finally, the last DC is then followed by a linear transformation and a softmax layer to produce the desired output probabilities.
+
+This somehow abstract description is visualized in Figure \ref{fig:transformer}. Moreover, Figure \ref{fig:attention} shows a visualization of the self-attention mechanism in the ECs where the relevance of each embedding (i.e. word) are compared.
+
+\begin{figure}[ht]
     \centering
     \includegraphics[scale=0.7]{images/attention.PNG}
-    \caption{Visualization of the self-attention mechanism.}
-    % cite: https://arxiv.org/pdf/1706.03762.pdf
+    \caption{Visualization of the self-attention mechanism from \cite{transformer}.}
     \label{fig:attention}
 \end{figure}
 
-For a detailed description of the attention mechanism, we refer to \textbf{cite} (original paper) or \href{some interesting url}{some interesting url}.
-
-\textbf{to-be-continued}
-\textbf{cite:}http://jalammar.github.io/illustrated-transformer/
-
-
-\href{https://en.wikipedia.org/wiki/Transformer_(machine_learning_model)}{Wikipedia}
-
-\href{https://towardsdatascience.com/transformers-141e32e69591}{https://towardsdatascience.com/transformers-141e32e69591}
-
 \subsection{Implementation and Training Details}
-We use the Transformer implementation in TensorFlow 2.0 available from the \href{https://www.tensorflow.org/tutorials/text/transformer}{tensorflow website} and implement a custom training loop, which instantiates the $\mathcal{S}\mapsto\mathcal{T}$ and $\mathcal{T}\mapsto\mathcal{S}$ models and trains them jointly with the loss described in \eqref{eq:RTL}. We train our models on the WMT'14 English-German data set available from \href{https://nlp.stanford.edu/projects/nmt/}{https://nlp.stanford.edu/projects/nmt/}. The training set consists of 4,508,785 sentence pairs, of which we retain those where source and target sequence both have a length of 40 or fewer tokens to keep the computational demands manageable (the original transformer model in \citet{transformer} uses a maximal sequence length of 65). We employ a subword tokenizer, and experiment with relatively small target vocabulary sizes of both $2^{13}$ and $2^{14}$, again to keep computational demands at bay (a production system would likely use a vocabulary at least twice as large). Compared to the base transformer, we also reduce the number of layers from from 6 to 4, $d_{model}$ from 512 to 128, and $d_{ff}$ from 2048 to 512. The number of attention heads is kept at 8.
+We use the Transformer implementation in TensorFlow 2.0 available from the \href{https://www.tensorflow.org/tutorials/text/transformer}{tensorflow website} and implement a custom training loop, which instantiates the $\mathcal{S}\mapsto\mathcal{T}$ and $\mathcal{T}\mapsto\mathcal{S}$ models and trains them jointly with the loss described in \eqref{eq:RTL}. We train our models on the WMT'14 English-German data set available from \href{https://nlp.stanford.edu/projects/nmt/}{https://nlp.stanford.edu/projects/nmt/}. The training set consists of 4,508,785 sentence pairs, of which we retain those where source and target sequence both have a length of 40 or fewer tokens to keep the computational demands manageable (the original Transformer model in \citet{transformer} uses a maximal sequence length of 65). We employ a subword tokenizer, and experiment with relatively small target vocabulary sizes of both $2^{13}$ and $2^{14}$, again to keep computational demands at bay (a production system would likely use a vocabulary at least twice as large). Compared to the base transformer, we also reduce the number of layers from from 6 to 4, $d_{model}$ from 512 to 128, and $d_{ff}$ from 2048 to 512. The number of attention heads is kept at 8.
 With these choices, training the model (which consists of two transformers) for a single epoch on the entire dataset takes about ... on a single NVIDIA GTX1080 (?). We use a learning rate schedule that increases the learning rate from ... to ... over ... warm-up periods, and then decreases it again, down to a final value of ... 
 
 At test time, we rely on the beam search decoder implementation from \href{https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/utils}{tensor2tensor}. We use a beam width of 10 and a length penalty of $\alpha=0.65$, per the recommendations of \citet{googlenmt}. The BLEU score for the 3,003 sentences in the test set is computed using the \href{https://www.nltk.org/}{nltk} package. 
