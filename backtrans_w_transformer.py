@@ -18,7 +18,7 @@ nltk.download('punkt')
 # validation parameters
 parser = argparse.ArgumentParser()
 parser.add_argument("--train_dir", type=str, help="Directory of nmt - needed for cluster")
-parser.add_argument("--experiment_name", type=str, required=True, help="Experiment to evaluate.")
+parser.add_argument("--experiment_name", type=str, required=True, help="Model to use for backtranslation.")
 parser.add_argument("--beam_width", type=int, default=10, help="Beam width for search.") # https://arxiv.org/pdf/1609.08144.pdf
 parser.add_argument("--alpha", type=float, default=0.65, help="Length penalty.") # https://arxiv.org/pdf/1609.08144.pdf
 
@@ -43,7 +43,10 @@ checkpoint_path = os.path.normpath(os.path.join(checkpoint_path, experiment_name
 config = json.load(open(os.path.join(checkpoint_path, 'config.json')))
 MAX_LENGTH = config['MAX_LENGTH']# use only training examples shorter than this
 DICT_SIZE = config['DICT_SIZE'] # this is likely too small
+TRAIN_ON = config['TRAIN_ON']
 
+if TRAIN_ON == 100:
+    raise ValueError("Only models w TRAIN_ON < 100 can be used for backtrans - as there needs to be training samples left that were not used for model training")
 num_layers = config['num_layers'] # base transformer uses 6
 d_model = config['d_model'] # base transformer uses 512
 dff = config['dff'] # base transformer uses 2048
@@ -58,19 +61,22 @@ def evaluate_transformer():
     input_vocab_size = tokenizer_de.vocab_size + 2
     target_vocab_size = tokenizer_en.vocab_size + 2
 
-    transformer1 = Transformer(num_layers, d_model, num_heads, dff,
-                              input_vocab_size, target_vocab_size,
-                              pe_input=input_vocab_size,
-                              pe_target=target_vocab_size,
+    # using transformer2 as eng-> de
+    transformer2 = Transformer(num_layers, d_model, num_heads, dff,
+                              target_vocab_size, input_vocab_size,
+                              pe_input=target_vocab_size,
+                              pe_target=input_vocab_size,
                               rate=dropout_rate)
 
 
-    ckpt = tf.train.Checkpoint(transformer1=transformer1)
+    ckpt = tf.train.Checkpoint(transformer2=transformer2)
     ckpt.restore(tf.train.latest_checkpoint(checkpoint_path)).expect_partial()
     print('Latest checkpoint restored!!')
+    # loading different part of training set for backtrans (before :TRAIN_ON)
+    split = tfds.Split.TRAIN.subsplit(tfds.percent[TRAIN_ON:])
     examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
-                                   as_supervised=True)
-    test_examples = examples['test']
+                                   as_supervised=True, split=[split, 'validation'])
+    train_examples4backtrans = examples['train']
 
     def predict(inp_sentence):
       start_token = [tokenizer_de.vocab_size]
@@ -128,9 +134,10 @@ def evaluate_transformer():
     inputs = []
     targets = []
     BLEUs = []
-    for sentence in test_examples:
-        inp = sentence[0].numpy().decode('utf-8')
-        target = sentence[1].numpy().decode('utf-8')
+    for sentence in train_examples4backtrans:
+        # eng-> deu : hence indexes reversed
+        inp = sentence[1].numpy().decode('utf-8')
+        target = sentence[0].numpy().decode('utf-8')
         translation = translate(inp)
         BLEU = nltk.translate.bleu_score.sentence_bleu([nltk.word_tokenize(target)], nltk.word_tokenize(translation))
         translations.append(translation)
@@ -141,7 +148,8 @@ def evaluate_transformer():
 
     d = {'input': inputs, 'target': targets, 'translation': translations, 'BLEU': BLEUs}
     df = pd.DataFrame.from_dict(d)
-    df.to_csv(os.path.join(output_path, 'results_'+experiment_name+'.csv'))
+    df.to_csv(os.path.join(output_path, 'results_backtrans_'+experiment_name+'.csv'))
+
     print('Average BLEU score: ', 100 * np.mean(BLEUs))
 
 if __name__ == "__main__":
