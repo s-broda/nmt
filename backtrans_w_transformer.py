@@ -21,13 +21,14 @@ parser.add_argument("--train_dir", type=str, help="Directory of nmt - needed for
 parser.add_argument("--experiment_name", type=str, required=True, help="Model to use for backtranslation.")
 parser.add_argument("--beam_width", type=int, default=10, help="Beam width for search.") # https://arxiv.org/pdf/1609.08144.pdf
 parser.add_argument("--alpha", type=float, default=0.65, help="Length penalty.") # https://arxiv.org/pdf/1609.08144.pdf
+parser.add_argument("--train_backtrans_on", type=int, default=2, help="Percentage of remaining train data to backtranslate.")
 
 ARGS = parser.parse_args()
 train_dir = ARGS.train_dir
 experiment_name = ARGS.experiment_name
 beam_width = ARGS.beam_width
 alpha = ARGS.alpha
-
+train_backtrans_on = ARGS.train_backtrans_on
 # paths
 checkpoint_path = os.path.join(train_dir, "checkpoints")
 output_path = os.path.join(train_dir, "output")
@@ -58,14 +59,14 @@ dropout_rate = config['dropout_rate']
 def evaluate_transformer():
     tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
     tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE)))
-    input_vocab_size = tokenizer_de.vocab_size + 2
-    target_vocab_size = tokenizer_en.vocab_size + 2
+    input_vocab_size = tokenizer_en.vocab_size + 2
+    target_vocab_size = tokenizer_de.vocab_size + 2
 
     # using transformer2 as eng-> de
     transformer2 = Transformer(num_layers, d_model, num_heads, dff,
-                              target_vocab_size, input_vocab_size,
-                              pe_input=target_vocab_size,
-                              pe_target=input_vocab_size,
+                              input_vocab_size, target_vocab_size,
+                              pe_input=input_vocab_size,
+                              pe_target=target_vocab_size,
                               rate=dropout_rate)
 
 
@@ -73,22 +74,22 @@ def evaluate_transformer():
     ckpt.restore(tf.train.latest_checkpoint(checkpoint_path)).expect_partial()
     print('Latest checkpoint restored!!')
     # loading different part of training set for backtrans (before :TRAIN_ON)
-    split = tfds.Split.TRAIN.subsplit(tfds.percent[TRAIN_ON:])
+    split = tfds.Split.TRAIN.subsplit(tfds.percent[TRAIN_ON:(TRAIN_ON+train_backtrans_on)])
     examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
                                    as_supervised=True, split=[split, 'validation'])
     train_examples4backtrans = examples['train']
 
     def predict(inp_sentence):
-      start_token = [tokenizer_de.vocab_size]
-      end_token = [tokenizer_de.vocab_size + 1]
+      start_token = [tokenizer_en.vocab_size]
+      end_token = [tokenizer_en.vocab_size + 1]
 
-      # inp sentence is portuguese, hence adding the start and end token
-      inp_sentence = start_token + tokenizer_de.encode(inp_sentence) + end_token
+      # inp sentence is ENGLISH, hence adding the start and end token
+      inp_sentence = start_token + tokenizer_en.encode(inp_sentence) + end_token
       encoder_input = tf.expand_dims(inp_sentence, 0)
 
-      # as the target is english, the first word to the transformer should be the
+      # as the target is GERMAN, the first word to the transformer should be the
       # english start token.
-      decoder_input = [tokenizer_en.vocab_size]
+      decoder_input = [tokenizer_de.vocab_size]
       output = tf.expand_dims(decoder_input, 0)
       
 
@@ -97,7 +98,7 @@ def evaluate_transformer():
           batched_input = tf.tile(encoder_input, [beam_width, 1])
           enc_padding_mask, combined_mask, dec_padding_mask = create_masks(
             batched_input, output)
-          predictions, attention_weights = transformer1(batched_input,
+          predictions, attention_weights = transformer2(batched_input,
                                                      output,
                                                      False,
                                                      enc_padding_mask,
@@ -114,7 +115,7 @@ def evaluate_transformer():
                  target_vocab_size,
                  alpha,
                  states=None,
-                 eos_id=tokenizer_en.vocab_size+1,
+                 eos_id=tokenizer_de.vocab_size+1,
                  stop_early=True,
                  use_tpu=False,
                  use_top_k_with_unique=True)
@@ -123,8 +124,8 @@ def evaluate_transformer():
 
     def translate(sentence):
       result = predict(sentence)
-      predicted_sentence = tokenizer_en.decode([i for i in result
-                                                if i < tokenizer_en.vocab_size])
+      predicted_sentence = tokenizer_de.decode([i for i in result
+                                                if i < tokenizer_de.vocab_size])
 
       print('Input: {}'.format(sentence))
       print('Predicted translation: {}'.format(predicted_sentence))
