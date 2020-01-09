@@ -49,12 +49,18 @@ d_model = config['d_model'] # base transformer uses 512
 dff = config['dff'] # base transformer uses 2048
 num_heads = config['num_heads'] # base transformer uses 8
 dropout_rate = config['dropout_rate']
+TRAIN_ON = config['TRAIN_ON']
 
+if TRAIN_ON < 100:
+    print('Reading spec tokenizers')
+    tag_new_tok = 'to' + str(TRAIN_ON)
+else:
+    tag_new_tok = ''
 # endregion
 
 def evaluate_transformer():
-    tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
-    tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE)))
+    tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(output_path, tag_new_tok + "tokenizer_en_" + str(DICT_SIZE)))
+    tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file(os.path.join(output_path, tag_new_tok + "tokenizer_de_" + str(DICT_SIZE)))
     input_vocab_size = tokenizer_de.vocab_size + 2
     target_vocab_size = tokenizer_en.vocab_size + 2
 
