@@ -77,7 +77,9 @@ def evaluate_transformer():
     split = tfds.Split.TRAIN.subsplit(tfds.percent[TRAIN_ON:(TRAIN_ON+train_backtrans_on)])
     examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
                                    as_supervised=True, split=[split, 'validation'])
-    train_examples4backtrans = examples['train']
+    train_examples4backtrans = examples[0]
+    print('type of train_examples4backtrans: {}'.format(type(train_examples4backtrans)))
+    print('shape of train_examples4backtrans: {}'.format(tf.data.experimental.cardinality(train_examples4backtrans)))
 
     def predict(inp_sentence):
       start_token = [tokenizer_en.vocab_size]
