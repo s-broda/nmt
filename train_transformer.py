@@ -133,13 +133,19 @@ def train():
 
     # region Create tokenizers
     # read previously created tokenizers if they exist
-    if (os.path.isfile(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE) + ".subwords")) &
-            os.path.isfile(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE) + ".subwords"))):
+    if TRAIN_ON < 100:
+        print('Creating new tokenizers')
+        tag_new_tok = 'to' + str(TRAIN_ON)
+    else:
+        tag_new_tok = ''
+
+    if (os.path.isfile(os.path.join(output_path, tag_new_tok + "tokenizer_en_" + str(DICT_SIZE) + ".subwords")) &
+            os.path.isfile(os.path.join(output_path, tag_new_tok + "tokenizer_de_" + str(DICT_SIZE) + ".subwords"))):
         
         tokenizer_en = tfds.features.text.SubwordTextEncoder.load_from_file(
-            os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
+            os.path.join(output_path, tag_new_tok + "tokenizer_en_" + str(DICT_SIZE)))
         tokenizer_de = tfds.features.text.SubwordTextEncoder.load_from_file(
-            os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE)))
+            os.path.join(output_path, tag_new_tok + "tokenizer_de_" + str(DICT_SIZE)))
     else:
         # create tokenizers from scratch
         examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
@@ -149,12 +155,12 @@ def train():
         # English tokenizer
         tokenizer_en = tfds.features.text.SubwordTextEncoder.build_from_corpus(
             (en.numpy() for de, en in train_examples), target_vocab_size=DICT_SIZE)
-        tokenizer_en.save_to_file(os.path.join(output_path, "tokenizer_en_" + str(DICT_SIZE)))
+        tokenizer_en.save_to_file(os.path.join(output_path, tag_new_tok + "tokenizer_en_" + str(DICT_SIZE)))
 
         # German tokenizer
         tokenizer_de = tfds.features.text.SubwordTextEncoder.build_from_corpus(
             (de.numpy() for de, en in train_examples), target_vocab_size=DICT_SIZE)
-        tokenizer_de.save_to_file(os.path.join(output_path, "tokenizer_de_" + str(DICT_SIZE)))
+        tokenizer_de.save_to_file(os.path.join(output_path, tag_new_tok + "tokenizer_de_" + str(DICT_SIZE)))
 
     input_vocab_size = tokenizer_de.vocab_size + 2
     target_vocab_size = tokenizer_en.vocab_size + 2
