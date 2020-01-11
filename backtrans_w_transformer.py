@@ -84,6 +84,12 @@ def evaluate_transformer():
     print('Split is: {}'.format(split))
     examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
                                    as_supervised=True, split=split)
+    def filter_max_length(x, y, max_length=MAX_LENGTH):
+        """Function restricting used sequences x and y to <= max_lenght"""
+        return tf.logical_and(tf.size(x) <= max_length,
+                              tf.size(y) <= max_length)
+
+    examples = examples.filter(filter_max_length)
     train_examples4backtrans = examples
     print('type of train_examples4backtrans: {}'.format(type(train_examples4backtrans)))
     print('shape of train_examples4backtrans: {}'.format(tf.data.experimental.cardinality(train_examples4backtrans)))
@@ -157,12 +163,12 @@ def evaluate_transformer():
         BLEUs.append(BLEU)
         print('Average BLEU score: ', 100 * np.mean(BLEUs))
         targets.append(target)
-        i+=1
+        # i+=1
         # store backtrans every 800 sentences
-        if i % 800 == 0:
-            d = {'input': inputs, 'target': targets, 'translation': translations, 'BLEU': BLEUs}
-            df = pd.DataFrame.from_dict(d)
-            df.to_csv(os.path.join(output_path, 'results_backtrans_' + experiment_name + '_interm_'+str(i)+'.csv'))
+        # if i % 800 == 0:
+        #     d = {'input': inputs, 'target': targets, 'translation': translations, 'BLEU': BLEUs}
+        #     df = pd.DataFrame.from_dict(d)
+        #     df.to_csv(os.path.join(output_path, 'results_backtrans_' + experiment_name + '_interm_'+str(i)+'.csv'))
 
     d = {'input': inputs, 'target': targets, 'translation': translations, 'BLEU': BLEUs}
     df = pd.DataFrame.from_dict(d)
