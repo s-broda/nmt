@@ -79,7 +79,8 @@ def evaluate_transformer():
     ckpt.restore(tf.train.latest_checkpoint(checkpoint_path)).expect_partial()
     print('Latest checkpoint restored!!')
     # loading different part of training set for backtrans (before :TRAIN_ON)
-    split = tfds.Split.TRAIN.subsplit(tfds.percent[TRAIN_ON:(TRAIN_ON+train_backtrans_on)])
+    train_on_end = TRAIN_ON+train_backtrans_on
+    split = tfds.Split.TRAIN.subsplit(tfds.percent[TRAIN_ON:train_on_end])
     examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
                                    as_supervised=True, split=[split, 'validation'])
     train_examples4backtrans = examples[0]
