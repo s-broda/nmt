@@ -81,9 +81,10 @@ def evaluate_transformer():
     # loading different part of training set for backtrans (before :TRAIN_ON)
     train_on_end = TRAIN_ON+train_backtrans_on
     split = tfds.Split.TRAIN.subsplit(tfds.percent[TRAIN_ON:train_on_end])
+    print('Split is: {}'.format(split))
     examples, metadata = tfds.load('wmt14_translate/de-en', data_dir=data_path, with_info=True,
-                                   as_supervised=True, split=[split, 'validation'])
-    train_examples4backtrans = examples[0]
+                                   as_supervised=True, split=split)
+    train_examples4backtrans = examples
     print('type of train_examples4backtrans: {}'.format(type(train_examples4backtrans)))
     print('shape of train_examples4backtrans: {}'.format(tf.data.experimental.cardinality(train_examples4backtrans)))
 
