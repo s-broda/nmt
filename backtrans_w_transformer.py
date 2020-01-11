@@ -87,6 +87,7 @@ def evaluate_transformer():
     train_examples4backtrans = examples
     print('type of train_examples4backtrans: {}'.format(type(train_examples4backtrans)))
     print('shape of train_examples4backtrans: {}'.format(tf.data.experimental.cardinality(train_examples4backtrans)))
+    dataset_length = [i for i, _ in enumerate(train_examples4backtrans)][-1] + 1
 
     def predict(inp_sentence):
       start_token = [tokenizer_en.vocab_size]
@@ -144,6 +145,7 @@ def evaluate_transformer():
     inputs = []
     targets = []
     BLEUs = []
+    i = 0
     for sentence in train_examples4backtrans:
         # eng-> deu : hence indexes reversed
         inp = sentence[1].numpy().decode('utf-8')
@@ -155,6 +157,12 @@ def evaluate_transformer():
         BLEUs.append(BLEU)
         print('Average BLEU score: ', 100 * np.mean(BLEUs))
         targets.append(target)
+        i+=1
+        # store backtrans every 800 sentences
+        if i % 800 == 0:
+            d = {'input': inputs, 'target': targets, 'translation': translations, 'BLEU': BLEUs}
+            df = pd.DataFrame.from_dict(d)
+            df.to_csv(os.path.join(output_path, 'results_backtrans_' + experiment_name + '_interm_'+str(i)+'.csv'))
 
     d = {'input': inputs, 'target': targets, 'translation': translations, 'BLEU': BLEUs}
     df = pd.DataFrame.from_dict(d)
