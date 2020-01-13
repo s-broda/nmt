@@ -179,13 +179,18 @@ def train():
         if not os.path.exists(path2backtranslation):
             raise Exception('First you need to create the backtranslated sequences in evaluate_transformer w option backtrans_train!')
 
-        df_backtrans = pd.read_csv(path2backtranslation, index_col=0)
-        ar_backtrans_input = df_backtrans['input'].values
-        ar_backtrans_backtrans = df_backtrans['translation'].values
+        df_backtrans = pd.read_csv(open(path2backtranslation, 'r'), encoding='utf-8', engine='c', index_col=0)
+        ar_backtrans_input = df_backtrans['input'].values # Eng
+        ar_backtrans_backtrans = df_backtrans['translation'].values.tolist() # De
 
-        train_backtrans_input = tf.data.Dataset.from_tensor_slices(ar_backtrans_input)
-        train_backtrans_backtrans = tf.data.Dataset.from_tensor_slices(ar_backtrans_backtrans)
-        train_backtrans = tf.data.Dataset.zip((train_backtrans_input, train_backtrans_backtrans)) # <ZipDataset shapes: ((), ()), types: (tf.string, tf.string)>
+        ar_backtrans_input = [str(x) for x in ar_backtrans_input if type(x) != 'str']
+        ar_backtrans_backtrans = [str(x) for x in ar_backtrans_backtrans if type(x) != 'str']
+
+        train_backtrans_input = tf.data.Dataset.from_tensor_slices(ar_backtrans_input) #, dtype=tf.string) # Eng
+        train_backtrans_backtrans = tf.data.Dataset.from_tensor_slices(ar_backtrans_backtrans) # De
+
+        # De, Eng
+        train_backtrans = tf.data.Dataset.zip((train_backtrans_backtrans, train_backtrans_input)) # <ZipDataset shapes: ((), ()), types: (tf.string, tf.string)>
 
         # merge train_backtrans with train_examples
         train_examples = train_examples.concatenate(train_backtrans) # <ConcatenateDataset shapes: ((), ()), types: (tf.string, tf.string)>
