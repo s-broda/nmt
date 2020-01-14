@@ -1,20 +1,15 @@
 {
     "BATCH_SIZE": 64,
-    "BUFFER_SIZE": 4000,
+    "BUFFER_SIZE": 20000,
     "DICT_SIZE": 8192,
     "EPOCHS": 15,
-    "LAMBDA": 0.0,
     "MAX_LENGTH": 40,
-    "NO_RTL": true,
     "TRAIN_ON": 100,
     "WARMUP_STEPS": 4000,
     "d_model": 128,
     "dff": 512,
     "dropout_rate": 0.1,
-    "experiment_name": "pretrained_small",
-    "include_backtrans_of_model": "",
+    "experiment_name": "20191216-213603",
     "num_heads": 8,
-    "num_layers": 4,
-    "pretrained_name": "",
-    "train_dir": "/cluster/home/adamova/19_dlproject/nmt"
+    "num_layers": 4
 }
