@@ -50,6 +50,7 @@ Here, $s\in\mathcal{S}$ is the ground truth sentence in the first language, $t\i
 The round-trip loss is inspired by the cycle consistency loss pioneered by \citet{CycleGAN2017} in the context of GANs. The only application of this concept to the field of machine translation of which we are aware is \citet{su:2018}, who adapt it for unsupervised multi-modal machine translation. Here, we propose to apply the idea to supervised machine translation. We conjecture that encouraging the model to generate round-trippable translations will help it learn a semantically meaningful representation. A related idea is that of back-translation, pioneered by \citet{backtrans}. \citeauthor{backtrans} propose to augment the parallel training corpus used to train a machine translation system with synthetic data, obtained by translating a monolingual corpus in the target language to the source language using an independently trained system. They argue that this is beneficial in particular when parallel training data is scarce. The difference with our approach is two-fold: i) in our approach, the two networks are trained \emph{jointly}, each with their own round-trip loss term, whereas in back-translation, the models are trained separately, with only one of them benefiting from back-translation; ii) we do not assume the existence of a separate monolingual corpus in the target language, but work strictly with a parallel corpus. Having ground truth available, we are thus able to use teacher forcing in constructing the round-trip loss contribution, greatly speeding up training.
 
 The remainder of this manuscript is organized as follows. Section \ref{sec:models} describes the model architecture and our implementation of it. Section \ref{sec:results} details the results of our experiments with the proposed round-trip loss. Section \ref{sec:discussion} provides a discussion, and Section \ref{sec:conclusions} concludes.
+
 \section{Models and Methods}\label{sec:models}
 \subsection{Model Architecture}
 
@@ -111,10 +112,32 @@ At test time, we rely on the beam search decoder implementation from \href{https
 
 \section{Results}\label{sec:results}
 \subsection{Experiments}
-In order to evaluate the effect of our proposed round-trip loss, we conduct a number of experiments. First, we train and evaluate the model from scratch for different values of $\lambda$. This corresponds to setting $\tau=0$ in \eqref{eq:RTL}. The results after training each model for 15 epochs are shown in Table ...
+In order to evaluate the effect of our proposed round-trip loss, we conduct a number of experiments. First, we train and evaluate the model from scratch for different values of $\lambda$. This corresponds to setting $\tau=0$ in \eqref{eq:RTL}. The results after training each model for 15 epochs are shown in Table \ref{tab:result1}
+\begin{table} [ht]
+\centering
+\small
+\begin{tabular}{ l || c | c | c | c | c | c | c | c | c  }
+  $\lambda$ & 0.0 & 0.02 & 0.05 & 0.1 & 0.2 & 0.3 & 0.4 & 0.5 & 0.6 \\ \hline
+  $\nu=2^{13}$ & 11.69 & 11.00 & 10.34 & \textbf{11.89} & 10.65 & 9.75 & 11.29 & 10.59 & 11.19 \\
+  $\nu=2^{14}$ & \textbf{12.38} & 11.81 & 12.04 & 12.11 & 12.23 & 12.15 & 11.80 & 12.36 & 11.68 \\
+\end{tabular}
+\caption{BLEU scores for target vocabulary sizes $\nu=2^{13}$ and $\nu=2^{14}$}
+\label{tab:result1}
+\end{table}
 
-Next, we pre-train a model with $\lambda=0$ for 15 epochs, and then fine-tune it for another 15 epochs using the same values for $\lambda$ as before. The results are shown in Table ...
 
+Next, for target vocabulary size $2^{14}$ we pre-train a model with $\lambda=0$ for 15 epochs, and then fine-tune it for another 15 epochs using the same values for $\lambda$ as before. For target vocabulary size $2^{13}$ we pre-train a model for 12 epochs and then fine-tune for 15 epochs. The results are shown in Table \ref{tab:result2}
+\begin{table} [ht]
+\centering
+\small
+\begin{tabular}{ l || c | c | c | c | c | c | c | c | c  }
+  $\lambda$ & 0.0 & 0.02 & 0.05 & 0.1 & 0.2 & 0.3 & 0.4 & 0.5 & 0.6 \\ \hline
+  $\nu=2^{13}$ & \textbf{12.24} & 12.05 & 11.72 & 11.83 & 11.95 & 12.07 & 11.94 & 11.86 & 11.67 \\
+  $\nu=2^{14}$ & \textbf{13.27} & 11.52 & 12.62 & 12.86 & 12.71 & 12.59 & 12.60 & 12.50 & 12.44 \\
+\end{tabular}
+\caption{BLEU scores for target vocabulary sizes $\nu=2^{13}$ for $\tau=12$ and $\nu=2^{14}$ for $\tau=15$}
+\label{tab:result2}
+\end{table}
 Finally, in order to compare our approach to the back-translation approach of \citet{backtrans}, ...
 \subsection{Example Translations}
 \section{Discussion}\label{sec:discussion}
