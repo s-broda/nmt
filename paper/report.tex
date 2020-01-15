@@ -114,7 +114,7 @@ In order to compare our results to an alternative approach using back-translatio
 
 \section{Results}\label{sec:results}
 \subsection{Experiments}
-In order to evaluate the effect of our proposed round-trip loss, we conduct a number of experiments. First, we train and evaluate the model from scratch for different values of $\lambda$. This corresponds to setting $\tau=0$ in \eqref{eq:RTL}. The results after training each model for 15 epochs are shown in Table \ref{tab:result1}
+In order to evaluate the effect of our proposed round-trip loss, we conduct a number of experiments. First, we train and evaluate the model from scratch for different values of $\lambda$. This corresponds to setting $\tau=0$ in \eqref{eq:RTL}. The results after training each model for 15 epochs are shown in Table \ref{tab:result1}.
 \begin{table} [ht]
 \centering
 \small
@@ -140,9 +140,15 @@ Next, for target vocabulary size $2^{14}$ we pre-train a model with $\lambda=0$ 
 \label{tab:result2}
 \end{table}
 
-Due to the high computation
+Due to the high computation...
 Finally, in order to compare our approach to the back-translation approach of \citet{backtrans}, ...
 \subsection{Example Translations}
+The following are examples for $\lambda=0.1$ with a target vocabulary size of $2^{13}$ and $\tau=12$. \newline
+\textbf{Input:} "Er lief auf Sand die gesamte Länge der Arena und obwohl er so winzig aussah, hat er phantastische Arbeit geleistet." \newline
+\textbf{Predicted translation:} "He loved the entire length of the Arena and even though he was so wing, he has done fantastic work." \newline
+\textbf{Input:} "Kritiker wie die demokratische Senatorin Claire McCaskill aus Missouri vertreten die Ansicht, es gebe keine gültigen Sicherheitsgründe für das Verbot." \newline
+\textbf{Predicted translation:}  "Critics such as the democratic Senator Claire McCaskill for Missouri represent the view that there are no valid security reasons for the ban."
+
 \section{Discussion}\label{sec:discussion}
 Discuss the strengths and weaknesses of your approach, based on the results. Point out the implications of your novel idea on the application concerned.
 \section{Summary}\label{sec:conclusions}
