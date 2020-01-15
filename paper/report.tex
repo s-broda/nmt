@@ -87,7 +87,8 @@ This somehow abstract description is visualized in Figure \ref{fig:transformer}.
 
 \subsection{Implementation and Training Details}
 We use the Transformer implementation in TensorFlow 2.0 available from the \href{https://www.tensorflow.org/tutorials/text/transformer}{tensorflow website} and implement a custom training loop, which instantiates the $\mathcal{S}\mapsto\mathcal{T}$ and $\mathcal{T}\mapsto\mathcal{S}$ models and trains them jointly with the loss described in \eqref{eq:RTL}. We train our models on the WMT'14 English-German data set available from \href{https://nlp.stanford.edu/projects/nmt/}{https://nlp.stanford.edu/projects/nmt/}. The training set consists of 4,508,785 sentence pairs, of which we retain those where source and target sequence both have a length of 40 or fewer tokens to keep the computational demands manageable (the original Transformer model in \citet{transformer} uses a maximal sequence length of 65). We employ a subword tokenizer, and experiment with relatively small target vocabulary sizes of both $2^{13}$ and $2^{14}$, again to keep computational demands at bay (a production system would likely use a vocabulary at least twice as large). Compared to the base transformer, we also reduce the number of layers from from 6 to 4, $d_{model}$ from 512 to 128, and $d_{ff}$ from 2048 to 512. The number of attention heads is kept at 8.
-With these choices, training the model (which consists of two transformers) for a single epoch on the entire dataset takes about ... on a single NVIDIA GTX1080 (?). We use a learning rate schedule that increases the learning rate from ... to ... over ... warm-up periods, and then decreases it again, down to a final value of ... 
+With these choices, training the model (which consists of two transformers) for a single epoch on the entire dataset takes about 72 minutes on a single NVIDIA GTX1080 Ti. We use the learning rate schedule that was used for the original Transformer model in \cite{transformer}.
+
 
 At test time, we rely on the beam search decoder implementation from \href{https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/utils}{tensor2tensor}. We use a beam width of 10 and a length penalty of $\alpha=0.65$, per the recommendations of \citet{googlenmt}. The BLEU score for the 3,003 sentences in the test set is computed using the \href{https://www.nltk.org/}{nltk} package. 
 
@@ -108,7 +109,8 @@ At test time, we rely on the beam search decoder implementation from \href{https
 %end{equation}
 %Hence $\mathcal{L}_{\mathcal{S}, \mathcal{T}}$ represents the sum of the respective cross-entropies between the ground truth and its predictions and the ground truth and the twice-translated sentences. Note that $\mathcal{L}_{\mathcal{S}, \mathcal{T}}$ is bidirectional.
 
-\textbf{TODO: implementation of backtranslation}
+
+In order to compare our results to an alternative approach using back-translation suggested in \cite{backtrans} we trained our model on $10\%$ of the available data and then created synthetic data in the input language by translating $0.5\%$ of the target language data. We then trained a new model on the previously used $10\%$ of the data combined with the synthetically created data.
 
 \section{Results}\label{sec:results}
 \subsection{Experiments}
@@ -125,7 +127,6 @@ In order to evaluate the effect of our proposed round-trip loss, we conduct a nu
 \label{tab:result1}
 \end{table}
 
-
 Next, for target vocabulary size $2^{14}$ we pre-train a model with $\lambda=0$ for 15 epochs, and then fine-tune it for another 15 epochs using the same values for $\lambda$ as before. For target vocabulary size $2^{13}$ we pre-train a model for 12 epochs and then fine-tune for 15 epochs. The results are shown in Table \ref{tab:result2}
 \begin{table} [ht]
 \centering
@@ -138,6 +139,8 @@ Next, for target vocabulary size $2^{14}$ we pre-train a model with $\lambda=0$ 
 \caption{BLEU scores for target vocabulary sizes $\nu=2^{13}$ for $\tau=12$ and $\nu=2^{14}$ for $\tau=15$}
 \label{tab:result2}
 \end{table}
+
+Due to the high computation
 Finally, in order to compare our approach to the back-translation approach of \citet{backtrans}, ...
 \subsection{Example Translations}
 \section{Discussion}\label{sec:discussion}
