@@ -10,7 +10,7 @@ pip install -r requirements.txt
 ```
 
 ### Training a model
-To train a model named model_test with default parameters run (with ```path2wd``` as the path to your working directory):
+To train a model named model_test with default parameters run (with ```path2wd``` as the path to nmt directory):
 ```
 python train_transformer.py --train_dir path2wd --experiment_name model_test
 ```
@@ -36,3 +36,8 @@ To train another model with the additional backtranslated training data run:
 ```
 python train_transformer.py --train_dir path2wd 10 --include_backtrans_of_model model_test --experiment_name model_test_wBacktrans
 ```
+
+### Contact
+In case of questions, please contact [Anja Adamov (adamova@student.ethz.ch )](mailto:adamova@student.ethz.ch ), 
+[Lauro Boeni (laboeni@gmail.com)](mailto:laboeni@gmail.com), [Simon Broda (simon.broda@uzh.ch)](mailto:simon.broda@uzh.ch) or 
+[Urs Voegeli (voegeli.urs@gmail.com)](mailto:voegeli.urs@gmail.com)
