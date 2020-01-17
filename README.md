@@ -8,6 +8,7 @@ Please install the required packages by running:
 ```
 pip install -r requirements.txt
 ```
+Please also install [git lfs](https://github.com/git-lfs/git-lfs/wiki/Installation) as this repository uses it to version checkpoints of pretrained models. 
 
 ### Training a model
 To train a model named model_test with default parameters run (with ```path2wd``` as the path to nmt directory):
