@@ -30,7 +30,7 @@ Urs V\"{o}geli$\mbox{}^b$\thanks{\emph{E-mail address:} voegeli.urs@gmail.com}
 \maketitle \setcounter{page}{0}\thispagestyle{empty}
 \definecolor{Gray}{rgb}{0.5,0.5,0.5}
 \begin{abstract}
-We propose to augment a machine translation system by adding a round-trip loss which encourages the system to generate translations that when translated back into the source language, retain much of the original structure. We show that in doing so, the model will learn internal representations with improved semantic meaning.
+We propose to augment a machine translation system by adding a round-trip loss which encourages the system to generate translations that when translated back into the source language, retain much of the original structure. We conjectured that in doing so, the model would learn internal representations with improved semantic meaning. Alas, these hopes are not borne out by the results; our experiments show that incorporating the proposed loss has little to no effect on the obtained translations.
 \end{abstract}
 \bigskip \textbf{Key Words}: Cycle consistency loss; deep learning; natural language understanding; machine translation; round-trip loss.
 %\renewcommand{\baselinestretch}{1.3}\small\normalsize
@@ -45,7 +45,7 @@ Here, we propose to add a round-trip penalty to the loss function of the model. 
 \mathcal{L} = CE(s, \hat{s}) + CE(t, \hat{t}) + \lambda \left( CE(s, \tilde{s}) + CE(t, \tilde{t})\right).
 \label{eq:RTL}
 \end{equation}
-Here, $s\in\mathcal{S}$ is the ground truth sentence in the first language, $t\in\mathcal{T}$ is the corresponding ground truth in the second language, $\hat{s}\in\mathcal{S}$ and $\hat{t}\in\mathcal{T}$ are the respective translations of $t$ and $s$, $\tilde{s}$ is obtained by translating $\hat{t}$ back to $\mathcal{S}$, and $\tilde{t}$ is obtained by translating $\hat{s}$ back to $\mathcal{T}$. $\tau$ and $\lambda$ are hyperparameters. 
+Here, $s\in\mathcal{S}$ is the ground truth sentence in the first language, $t\in\mathcal{T}$ is the corresponding ground truth in the second language, $\hat{s}\in\mathcal{S}$ and $\hat{t}\in\mathcal{T}$ are the respective translations of $t$ and $s$, $\tilde{s}$ is obtained by translating $\hat{t}$ back to $\mathcal{S}$, and $\tilde{t}$ is obtained by translating $\hat{s}$ back to $\mathcal{T}$. $\tau$ and $\lambda$ are hyperparameters.
 
 The round-trip loss is inspired by the cycle consistency loss pioneered by \citet{CycleGAN2017} in the context of GANs. The only application of this concept to the field of machine translation of which we are aware is \citet{su:2018}, who adapt it for unsupervised multi-modal machine translation. Here, we propose to apply the idea to supervised machine translation. We conjecture that encouraging the model to generate round-trippable translations will help it learn a semantically meaningful representation. A related idea is that of back-translation, pioneered by \citet{backtrans}. \citeauthor{backtrans} propose to augment the parallel training corpus used to train a machine translation system with synthetic data, obtained by translating a monolingual corpus in the target language to the source language using an independently trained system. They argue that this is beneficial in particular when parallel training data is scarce. The difference with our approach is two-fold: i) in our approach, the two networks are trained \emph{jointly}, each with their own round-trip loss term, whereas in back-translation, the models are trained separately, with only one of them benefiting from back-translation; ii) we do not assume the existence of a separate monolingual corpus in the target language, but work strictly with a parallel corpus. Having ground truth available, we are thus able to use teacher forcing in constructing the round-trip loss contribution, greatly speeding up training.
 
@@ -61,7 +61,7 @@ The core idea behind the classical Transformer model is the so-called self-atten
 For deep neural networks aiming to perform sequence translation, some general sort of memory is required as, in practice, a lot of sequences depend on words from previous sequences. As an example for the reader, try to complete the phrases "My father is a winegrower. He likes to drink {\tt ...}". In this case, you might guess the missing word "wine" correctly - with the help of attention. And this is exactly, what modern natural language models try to capture.
 
 Recurrent Neural Networks (short: RNN) tackle this problem by a specific architecture that focuses on time-dependencies. However, they are hardly or even not parallelizable and hence computationally suboptimal.
-On the other hand, Convolution Neural Networks (short: CNN) are easily parallelizable and can exploit local dependencies. However, these models do not explicitly rely on the attention. 
+On the other hand, Convolution Neural Networks (short: CNN) are easily parallelizable and can exploit local dependencies. However, these models do not explicitly rely on the attention.
 
 \begin{figure}[ht]
     \centering
@@ -90,7 +90,7 @@ We use the Transformer implementation in TensorFlow 2.0 available from the \href
 With these choices, training the model (which consists of two transformers) for a single epoch on the entire dataset takes about 72 minutes on a single NVIDIA GTX1080 Ti. We use the learning rate schedule that was used for the original Transformer model in \cite{transformer}.
 
 
-At test time, we rely on the beam search decoder implementation from \href{https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/utils}{tensor2tensor}. We use a beam width of 10 and a length penalty of $\alpha=0.65$, per the recommendations of \citet{googlenmt}. The BLEU score for the 3,003 sentences in the test set is computed using the \href{https://www.nltk.org/}{nltk} package. 
+At test time, we rely on the beam search decoder implementation from \href{https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/utils}{tensor2tensor}. We use a beam width of 10 and a length penalty of $\alpha=0.65$, per the recommendations of \citet{googlenmt}. The BLEU score for the 3,003 sentences in the test set is computed using the \href{https://www.nltk.org/}{nltk} package.
 
 
 
@@ -98,7 +98,7 @@ At test time, we rely on the beam search decoder implementation from \href{https
 %\begin{equation}
 %    \mathcal{L}_{\mathcal{S}, \mathcal{T}} (s,t) = \text{CE}(s, \hat{s}) + \text{CE}(t, \hat{t}) + \lambda %\left(\text{CE}(s, \tilde{s}) + \text{CE}(t, \tilde{t})\right),
 %\end{equation}
-%where $s \in \mathcal{S}$ is the ground truth sentences, $t \in \mathcal{T}$ is the corresponding ground truth in the second language, $\hat{s} = \text{Transformer}(t) \in \mathcal{S}$ and $\hat{t} = \text{Transformer}(s) \in \mathcal{T}$ are the respective predictions / translations of $t \in \mathcal{T}$ and $s \in \mathcal{S}$. $\tilde{s}$ and $\tilde{t}$ are obtained by translating $\hat{t}$ and $\hat{s}$ back to $\mathcal{S}$ and $\mathcal{T}$. $\text{CE}$ stands for the cross-entropy and $\lambda$ is a hyperparameter. 
+%where $s \in \mathcal{S}$ is the ground truth sentences, $t \in \mathcal{T}$ is the corresponding ground truth in the second language, $\hat{s} = \text{Transformer}(t) \in \mathcal{S}$ and $\hat{t} = \text{Transformer}(s) \in \mathcal{T}$ are the respective predictions / translations of $t \in \mathcal{T}$ and $s \in \mathcal{S}$. $\tilde{s}$ and $\tilde{t}$ are obtained by translating $\hat{t}$ and $\hat{s}$ back to $\mathcal{S}$ and $\mathcal{T}$. $\text{CE}$ stands for the cross-entropy and $\lambda$ is a hyperparameter.
 
 %More formally, we have
 %\begin{equation}
