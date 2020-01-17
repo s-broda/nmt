@@ -20,6 +20,11 @@ To train a model on only 80% of the training data run
 python train_transformer.py --train_dir path2wd --TRAIN_ON 80 --experiment_name model_test_80perc
 ```
 
+To train a model starting from an already pretrained model (e.g. pretrained_small) run
+```
+python train_transformer.py --train_dir path2wd --pretrained_name pretrained_small --experiment_name model_test_wpretrained
+```
+
 ### Evaluating a model
 To evaluate a model named model_test_80perc run
 ```
