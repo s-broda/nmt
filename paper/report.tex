@@ -120,9 +120,9 @@ In order to evaluate the effect of our proposed round-trip loss, we conduct a nu
 \centering
 \small
 \begin{tabular}{ l || c | c | c | c | c | c | c | c | c  }
-  $\lambda$ & 0.0 & 0.02 & 0.05 & 0.1 & 0.2 & 0.3 & 0.4 & 0.5 & 0.6 \\ \hline
-  $\nu=2^{13}$ & 11.69 & 11.00 & 10.34 & \textbf{11.89} & 10.65 & 9.75 & 11.29 & 10.59 & 11.19 \\
-  $\nu=2^{14}$ & \textbf{12.38} & 11.81 & 12.04 & 12.11 & 12.23 & 12.15 & 11.80 & 12.36 & 11.68 \\
+  $\lambda$ & 0.0 & 0.02 & 0.05 & 0.1 & 0.2 & 0.3 & 0.4 &  0.6 \\ \hline
+  $\nu=2^{13}$ & 11.69 & 11.00 & 10.34 & \textbf{11.89} & 10.65 & 9.75 & 11.29 &  11.19 \\
+  $\nu=2^{14}$ & \textbf{12.38} & 11.81 & 12.04 & 12.11 & 12.23 & 12.15 & 11.80 &  11.68 \\
 \end{tabular}
 \caption{BLEU scores for models trained from scratch, for different target vocabulary sizes $\nu$.}
 \label{tab:result1}
@@ -138,9 +138,9 @@ In our next set of experiments, we pre-train a model without round-trip loss ($\
 \centering
 \small
 \begin{tabular}{ l || c | c | c | c | c | c | c | c | c  }
-  $\lambda$ & 0.0 & 0.02 & 0.05 & 0.1 & 0.2 & 0.3 & 0.4 & 0.5 & 0.6 \\ \hline
-  $\nu=2^{13}$ & \textbf{12.24} & 12.05 & 11.72 & 11.83 & 11.95 & 12.07 & 11.94 & 11.86 & 11.67 \\
-  $\nu=2^{14}$ & \textbf{13.27} & 11.52 & 12.62 & 12.86 & 12.71 & 12.59 & 12.60 & 12.50 & 12.44 \\
+  $\lambda$ & 0.0 & 0.02 & 0.05 & 0.1 & 0.2 & 0.3 & 0.4 & 0.6 \\ \hline
+  $\nu=2^{13}$ & \textbf{12.24} & 12.05 & 11.72 & 11.83 & 11.95 & 12.07 & 11.94 & 11.67 \\
+  $\nu=2^{14}$ & \textbf{13.27} & 11.52 & 12.62 & 12.86 & 12.71 & 12.59 & 12.60 & 12.44 \\
 \end{tabular}
 \caption{BLEU scores for pre-trained models after fine tuning, for different target vocabulary sizes $\nu$.}
 \label{tab:result2}
