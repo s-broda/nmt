@@ -30,7 +30,7 @@ Urs V\"{o}geli$\mbox{}^b$\thanks{\emph{E-mail address:} voegeli.urs@gmail.com}
 \maketitle \setcounter{page}{0}\thispagestyle{empty}
 \definecolor{Gray}{rgb}{0.5,0.5,0.5}
 \begin{abstract}
-We propose to augment a machine translation system by adding a round-trip loss which encourages the system to generate translations that when translated back into the source language, retain much of the original structure. We conjectured that in doing so, the model would learn internal representations with improved semantic meaning. Alas, these hopes are not borne out by the results; our experiments show that incorporating the proposed loss has little to no effect on the obtained translations.
+We augment a machine translation system with a round-trip loss to encourage the system to generate translations that, when translated back into the source language, retain much of the original structure. We surmised that in doing so, the model would learn internal representations with improved semantic meaning. Alas, this conjecture was not borne out by the results; our experiments show that incorporating the proposed loss has little to no effect on the obtained translations in terms of their BLEU scores.
 \end{abstract}
 \bigskip \textbf{Key Words}: Cycle consistency loss; deep learning; natural language understanding; machine translation; round-trip loss.
 %\renewcommand{\baselinestretch}{1.3}\small\normalsize
@@ -49,7 +49,7 @@ Here, $s\in\mathcal{S}$ is the ground truth sentence in the first language, $t\i
 
 The round-trip loss is inspired by the cycle consistency loss pioneered by \citet{CycleGAN2017} in the context of GANs. The only application of this concept to the field of machine translation of which we are aware is \citet{su:2018}, who adapt it for unsupervised multi-modal machine translation. Here, we propose to apply the idea to supervised machine translation. We conjecture that encouraging the model to generate round-trippable translations will help it learn a semantically meaningful representation. A related idea is that of back-translation, pioneered by \citet{backtrans}. \citeauthor{backtrans} propose to augment the parallel training corpus used to train a machine translation system with synthetic data, obtained by translating a monolingual corpus in the target language to the source language using an independently trained system. They argue that this is beneficial in particular when parallel training data is scarce. The difference with our approach is two-fold: i) in our approach, the two networks are trained \emph{jointly}, each with their own round-trip loss term, whereas in back-translation, the models are trained separately, with only one of them benefiting from back-translation; ii) we do not assume the existence of a separate monolingual corpus in the target language, but work strictly with a parallel corpus. Having ground truth available, we are thus able to use teacher forcing in constructing the round-trip loss contribution, greatly speeding up training.
 
-The remainder of this manuscript is organized as follows. Section \ref{sec:models} describes the model architecture and our implementation of it. Section \ref{sec:results} details the results of our experiments with the proposed round-trip loss. Section \ref{sec:discussion} provides a discussion, and Section \ref{sec:conclusions} concludes.
+The remainder of this manuscript is organized as follows. Section \ref{sec:models} describes the model architecture and our implementation of it. Section \ref{sec:results} details the results of our experiments with the proposed round-trip loss. Section \ref{sec:discussion} provides a discussion and concludes.
 
 \section{Models and Methods}\label{sec:models}
 \subsection{Model Architecture}
@@ -90,7 +90,7 @@ We use the Transformer implementation in TensorFlow 2.0 available from the \href
 With these choices, training the model (which consists of two transformers) for a single epoch on the entire dataset takes about 72 minutes on a single NVIDIA GTX1080 Ti. We use the learning rate schedule that was used for the original Transformer model in \cite{transformer}.
 
 
-At test time, we rely on the beam search decoder implementation from \href{https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/utils}{tensor2tensor}. We use a beam width of 10 and a length penalty of $\alpha=0.65$, per the recommendations of \citet{googlenmt}. The BLEU score for the 3,003 sentences in the test set is computed using the \href{https://www.nltk.org/}{nltk} package.
+At test time, we rely on the beam search decoder implementation from \href{https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/utils}{tensor2tensor}. We use a beam width of 10 and a length penalty of $\alpha=0.65$, per the recommendations of \citet{googlenmt}. We assess the quality of the translations of the 3,003 sentences in the test set using the BLEU score \citep{bleu}, computed using the \href{https://www.nltk.org/}{nltk} package.
 
 
 
@@ -109,12 +109,13 @@ At test time, we rely on the beam search decoder implementation from \href{https
 %end{equation}
 %Hence $\mathcal{L}_{\mathcal{S}, \mathcal{T}}$ represents the sum of the respective cross-entropies between the ground truth and its predictions and the ground truth and the twice-translated sentences. Note that $\mathcal{L}_{\mathcal{S}, \mathcal{T}}$ is bidirectional.
 
-
-In order to compare our results to an alternative approach using back-translation suggested in \cite{backtrans} we trained our model on $10\%$ of the available data and then created synthetic data in the input language by translating $0.5\%$ of the target language data. We then trained a new model on the previously used $10\%$ of the data combined with the synthetically created data.
+%%I think this should live in Section 3. 
+%In order to compare our results to an alternative approach using back-translation suggested in %\cite{backtrans} we trained our model on $10\%$ of the available data and then created synthetic %data in the input language by translating $0.5\%$ of the target language data. We then trained a %new model on the previously used $10\%$ of the data combined with the synthetically created data.
 
 \section{Results}\label{sec:results}
 \subsection{Experiments}
 In order to evaluate the effect of our proposed round-trip loss, we conduct a number of experiments. First, we train and evaluate the model from scratch for different values of $\lambda$. This corresponds to setting $\tau=0$ in \eqref{eq:RTL}. The results after training each model for 15 epochs are shown in Table \ref{tab:result1}.
+
 \begin{table} [ht]
 \centering
 \small
@@ -123,11 +124,16 @@ In order to evaluate the effect of our proposed round-trip loss, we conduct a nu
   $\nu=2^{13}$ & 11.69 & 11.00 & 10.34 & \textbf{11.89} & 10.65 & 9.75 & 11.29 & 10.59 & 11.19 \\
   $\nu=2^{14}$ & \textbf{12.38} & 11.81 & 12.04 & 12.11 & 12.23 & 12.15 & 11.80 & 12.36 & 11.68 \\
 \end{tabular}
-\caption{BLEU scores for target vocabulary sizes $\nu=2^{13}$ and $\nu=2^{14}$}
+\caption{BLEU scores for models trained from scratch, for different target vocabulary sizes $\nu$.}
 \label{tab:result1}
 \end{table}
 
-Next, for target vocabulary size $2^{14}$ we pre-train a model with $\lambda=0$ for 15 epochs, and then fine-tune it for another 15 epochs using the same values for $\lambda$ as before. For target vocabulary size $2^{13}$ we pre-train a model for 12 epochs and then fine-tune for 15 epochs. The results are shown in Table \ref{tab:result2}
+The results are, at best, inconclusive. For vocabulary size $\nu=2^{13}$, while the best BLEU score is obtained with $\lambda=.1$, there is very little variation in the resulting BLEU scores within the range of $\lambda$ values tested. With vocabulary size $\nu=2^{14}$, the picture is similar, although the best score is now obtained with $\lambda=0$ (i.e., no round trip loss). While we have not formally tested this, the variation in scores appears small enough to be entirely attributable to random fluctuations. 
+
+In order to verify that the round-trip loss has any effect at all (and to rule out an error in our implementation), we trained a model with the unreasonably large value of $\lambda=100$. This resulted in a BLEU score of less than 0.1, confirming that the round-trip loss does eventually have an effect on the results, albeit negative in this case.
+
+In our next set of experiments, we pre-train a model without round-trip loss ($\lambda=0$), and then fine-tune it for another 15 epochs using the same values for $\lambda$ as before. This corresponds to a non-zero value of $\tau$ in \eqref{eq:RTL}. As before, we use both $2^{13}$ and $2^{14}$ as our vocabulary size, and set $\tau=12$ for the former and $\tau=15$ for the latter. For comparison, we also trained a model with $\lambda=0$ for $\tau+15$ epochs. The results are shown in Table \ref{tab:result2}.
+
 \begin{table} [ht]
 \centering
 \small
@@ -136,12 +142,15 @@ Next, for target vocabulary size $2^{14}$ we pre-train a model with $\lambda=0$ 
   $\nu=2^{13}$ & \textbf{12.24} & 12.05 & 11.72 & 11.83 & 11.95 & 12.07 & 11.94 & 11.86 & 11.67 \\
   $\nu=2^{14}$ & \textbf{13.27} & 11.52 & 12.62 & 12.86 & 12.71 & 12.59 & 12.60 & 12.50 & 12.44 \\
 \end{tabular}
-\caption{BLEU scores for target vocabulary sizes $\nu=2^{13}$ for $\tau=12$ and $\nu=2^{14}$ for $\tau=15$}
+\caption{BLEU scores for pre-trained models after fine tuning, for different target vocabulary sizes $\nu$.}
 \label{tab:result2}
 \end{table}
 
-Due to the high computation...
-Finally, in order to compare our approach to the back-translation approach of \citet{backtrans}, ...
+The results are qualitatively similar to those without pre-training, except that the best score is now obtained with $\lambda=0$ for both vocabulary sizes. As before, what little difference exist between models appears attributable to random variation.
+
+Finally, we conducted a last set of experiments in which we aimed to compare our approach to the back-translation approach of \citet{backtrans}. Note that even when trained without round-trip loss ($\lambda=0$), our implementation always trains two models jointly, one for translating $\mathcal{S}\mapsto\mathcal{T}$ and one for $\mathcal{T}\mapsto\mathcal{S}$. Thus, after training on a subset of the data for 15 epochs, we used the model to translate part of the remaining training data from $\mathcal{T}\mapsto\mathcal{S}$, and then augmented the training data in the source language with these synthetic data. We then trained a model from scratch on this augmented data set and evaluated it as usual. Unfortunately, these experiments were heavily constrained by computational time, mostly because translation is very costly: our implementation will translate roughly 3000 sentences per hour. As such, we decided to back-translate only around 0.5\% (21,600 sentences) of the training data. To allow this small augmentation to make a difference, we restricted the ground truth part of the data to 10\% of its original size. We also restrained ourselves to a tokenizer with a target vocabulary size of  $2^{13}$ to further reduce computational cost.\footnote{We experimented both with using the original tokenizer trained on the entire dataset, and a tokenizer trained on only the subset used for training.} With these restrictions, all models (with and without round trip loss)  resulted in BLEU scores below 1. These do not allow for a proper comparison and are thus not reported here.
+
+
 \subsection{Example Translations}
 The following are examples for $\lambda=0.1$ with a target vocabulary size of $2^{13}$ and $\tau=12$. \newline
 \textbf{Input:} "Er lief auf Sand die gesamte Länge der Arena und obwohl er so winzig aussah, hat er phantastische Arbeit geleistet." \newline
@@ -149,10 +158,14 @@ The following are examples for $\lambda=0.1$ with a target vocabulary size of $2
 \textbf{Input:} "Kritiker wie die demokratische Senatorin Claire McCaskill aus Missouri vertreten die Ansicht, es gebe keine gültigen Sicherheitsgründe für das Verbot." \newline
 \textbf{Predicted translation:}  "Critics such as the democratic Senator Claire McCaskill for Missouri represent the view that there are no valid security reasons for the ban."
 
-\section{Discussion}\label{sec:discussion}
-Discuss the strengths and weaknesses of your approach, based on the results. Point out the implications of your novel idea on the application concerned.
-\section{Summary}\label{sec:conclusions}
-Summarize your contributions in light of the new results.
+\section{Discussion and Conclusion}\label{sec:discussion}
+In this work, we proposed to augment a neural machine translation system with a round-trip loss, inspired by cycle consistency loss of \citet{CycleGAN2017}. In our experiments, we were unable to demonstrate any effect of the additional loss term, positive or negative, for a range of weights. We did, however, find that the additional loss term does have an effect when given extremely large weight. As such, it is conceivable that further experimentation with moderately large weights might find more encouraging results. 
+
+These results notwithstanding, we maintain that some form of regularization towards round-trippable translations should be able to improve translation quality, both because of the strong intuitive appeal of the idea, and because of its relation to the rather successful concept of backtranslation. An alternative to the approach pursued herein would be to add a regularization term that penalizes the squared norm of the difference between the outputs of the encoders of the two models $\mathcal{S}\mapsto\mathcal{T}$ and $\mathcal{T}\mapsto\mathcal{S}$. We leave these experiments to subsequent work.
+
+
+%\section{Summary}\label{sec:conclusions}
+%Summarize your contributions in light of the new results.
 \bibliography{proposal}
 \end{document}
 

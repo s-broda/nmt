@@ -110,6 +110,7 @@ venv.bak/
 /data
 /logs
 /output/results.csv
+/output/20191219-205106
 *.ipynb
 
 # LaTex
