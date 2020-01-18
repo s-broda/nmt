@@ -344,7 +344,7 @@ def train():
         train_accuracy.reset_states()
         val_loss.reset_states()
         val_accuracy.reset_states()
-        # inp -> portuguese, tar -> english
+        # inp -> german, tar -> english
         for (batch, (inp, tar)) in enumerate(train_dataset):
             train_step(inp, tar)
             if batch % 50 == 0:

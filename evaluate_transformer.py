@@ -82,7 +82,7 @@ def evaluate_transformer():
       start_token = [tokenizer_de.vocab_size]
       end_token = [tokenizer_de.vocab_size + 1]
 
-      # inp sentence is portuguese, hence adding the start and end token
+      # inp sentence is german, hence adding the start and end token
       inp_sentence = start_token + tokenizer_de.encode(inp_sentence) + end_token
       encoder_input = tf.expand_dims(inp_sentence, 0)
 
