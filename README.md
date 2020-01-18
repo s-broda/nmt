@@ -1,7 +1,7 @@
 # Round Trip Loss for Machine Translation
 Code repository for our report submitted for Deep Learning class autumn semester 2019.   
 
-Repository includes code from https://github.com/tensorflow/docs/blob/master/site/en/tutorials/text/nmt_with_attention.ipynb (copyright The TensorFlow Authors).
+Repository includes code from https://github.com/tensorflow/docs/blob/master/site/en/tutorials/text/nmt_with_attention.ipynb (copyright The TensorFlow Authors) and https://github.com/tensorflow/tensor2tensor/blob/master/tensor2tensor/utils/beam_search.py (Copyright 2019 The Tensor2Tensor Authors).
 
 ### Required packages
 Please install the required packages by running:
